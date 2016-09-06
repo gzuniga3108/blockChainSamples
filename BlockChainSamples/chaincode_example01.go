@@ -21,6 +21,7 @@ import (
 	"errors"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"encoding/json"
+	"strconv"
 )
 
 // SimpleChaincode example simple Chaincode implementation
@@ -78,10 +79,9 @@ func main() {
 }
 
 //Custom functions for putting state
-func (t *SimpleChaincode) createAccount(stub *shim.ChaincodeStub,args []string)([]byte, error){	
-	var err error	
+func (t *SimpleChaincode) createAccount(stub *shim.ChaincodeStub,args []string)([]byte, error){		
 	fmt.Println("Creating account")
-	if len(args) != 2 {
+	if len(args) != 2 {		
 		return nil,errors.New("Incorrect number of arguments. Expecting 2")
 	}
 	var account = Account{ID: args[0], Name:args[1], Balance: 0}	
@@ -97,7 +97,31 @@ func (t *SimpleChaincode) createAccount(stub *shim.ChaincodeStub,args []string)(
 }
 
 func (t *SimpleChaincode) purchaseCredit(stub *shim.ChaincodeStub,args []string)([]byte, error){	
-	return nil,nil
+	var id string	
+	var account Account	
+	if len(args) != 2{
+		return nil,errors.New("Expecting receive 2 arguments, 1 received")
+	}
+	id = args[0]
+	amount,err := strconv.ParseFloat(args[1],64)	
+	accountBytes, err := stub.GetState(id)
+	if err != nil {		
+		return nil,errors.New("Account not found " + id)
+	}
+	err = json.Unmarshal(accountBytes, &account)
+	if err != nil {		
+		return nil, errors.New("Error unmarshalling user account " + id)
+	}	
+	account.Balance = account.Balance + amount	
+	accountBytes2, err := json.Marshal(&account)
+	if(err != nil){
+		return nil,err
+	}
+	err = stub.PutState(account.ID, accountBytes2)
+	if(err != nil){
+		return nil,err	
+	}
+	return []byte("{\"Success:\",\"Purchase completed succesfully\"}"),nil	
 }
 func (t *SimpleChaincode) purchaseGame(stub *shim.ChaincodeStub,args []string)([]byte, error){	
 	return nil,nil
