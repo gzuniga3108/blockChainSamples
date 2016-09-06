@@ -41,6 +41,8 @@ type Game struct{
 	Status string `json:"status"`
 }
 
+
+
 // Init callback representing the invocation of a chaincode
 // This chaincode will manage two accounts A and B and will transfer X units from A to B upon invoke
 func (t *SimpleChaincode) Init(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
@@ -123,8 +125,49 @@ func (t *SimpleChaincode) purchaseCredit(stub *shim.ChaincodeStub,args []string)
 	}
 	return []byte("{\"Success:\",\"Purchase completed succesfully\"}"),nil	
 }
+
 func (t *SimpleChaincode) purchaseGame(stub *shim.ChaincodeStub,args []string)([]byte, error){	
-	return nil,nil
+	var game Game
+	var account Account
+	var idAccount,id string	
+	var amount float64
+	var jsonResp string
+	if len(args) != 2{
+		return nil,errors.New("Expecting 2 arguments")
+	}
+	idAccount = args[0]
+	id = args[1]
+	quantity,err := strconv.ParseFloat(args[2], 64)
+	accountBytes,err := stub.GetState(idAccount)
+	if err != nil{
+		return nil,errors.New("Error retrieving account information")
+	}
+	err = json.Unmarshal(accountBytes,&account)
+	if(err != nil){
+		return nil,errors.New("Error unmarshalling account information")
+	}
+	gameBytes,err := stub.GetState(id)
+	if err != nil{
+		return nil,errors.New("Error getting game information");
+	}
+	err = json.Unmarshal(gameBytes,&game);
+	if err != nil{
+		return nil,errors.New("Error unmarshalling game information");
+	}	
+
+	amount = game.Price * quantity;
+	if amount > account.Balance{
+		return nil,errors.New("Not enough money for buying games")
+	}
+
+	account.Balance = account.Balance - amount
+	accountBytes2,err := json.Marshal(&account)
+	err = stub.PutState(account.ID,accountBytes2)
+	if err != nil {
+		return nil,errors.New("Error saving the state of the account")	
+	}
+	jsonResp = "\"Success\":\"Account status updated succesfully\"";
+	return []byte(jsonResp),nil
 }
 func (t *SimpleChaincode) addGame(stub *shim.ChaincodeStub,args []string)([]byte, error){	
 	return nil,nil
