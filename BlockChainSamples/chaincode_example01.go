@@ -18,7 +18,9 @@ package main
 
 import (	
 	"fmt"
+	"errors"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
+	"encoding/json"
 )
 
 // SimpleChaincode example simple Chaincode implementation
@@ -26,35 +28,46 @@ type SimpleChaincode struct {
 }
 
 //Custom structs
-type User struct {
+type Account struct {
 	ID          string  `json:"id"`
 	Name        string  `json:"name"`
-	balance 	float64 `json:"balance"`
+	Balance 	float64 `json:"balance"`
+}
+
+type Game struct{
+	Name   string `json:"id"`
+	Price  float64 `json:"price"`
+	Status string `json:"status"`
 }
 
 // Init callback representing the invocation of a chaincode
 // This chaincode will manage two accounts A and B and will transfer X units from A to B upon invoke
 func (t *SimpleChaincode) Init(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	//var err error	
-	return []byte("Code deployed"), nil
+	return []byte("{\"Success\":\"Deploy completed\"}"), nil
 }
 func (t *SimpleChaincode) Invoke(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
-	// Transaction makes payment of X units from A to B
-	//var err error
-	/*X, err = strconv.Atoi(args[0])
-	Aval = Aval - X
-	Bval = Bval + X
-	ts, err2 := stub.GetTxTimestamp()
-	if err2 != nil {
-		fmt.Printf("Error getting transaction timestamp: %s", err2)
+	if function == "createAccount"{
+		return t.createAccount(stub,args)
+	}else if function == "purchaseCredit"{
+		return t.purchaseCredit(stub,args)
+	}else if function == "purchaseGame"{
+		return t.purchaseGame(stub,args)
+	}else if function == "addGame"{
+		return t.addGame(stub,args)
+	}else if function == "deleteGame"{
+		return	t.deleteGame(stub,args)
 	}
-	fmt.Printf("Transaction Time: %v,Aval = %d, Bval = %d\n", ts, Aval, Bval)*/
-	return nil, nil
+	return nil,errors.New("Cannot find function")		
 }
 
 // Query callback representing the query of a chaincode
-func (t *SimpleChaincode) Query(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
-	return nil, nil
+// Query is our entry point for queries
+func (t *SimpleChaincode) Query(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {	
+	if function == "readAccountState" {											
+		return t.readAccountState(stub,args)
+	}	
+	return nil, errors.New("Received unknown function query")
 }
 
 func main() {
@@ -62,4 +75,54 @@ func main() {
 	if err != nil {
 		fmt.Printf("Error starting Simple chaincode: %s", err)
 	}
+}
+
+//Custom functions for putting state
+func (t *SimpleChaincode) createAccount(stub *shim.ChaincodeStub,args []string)([]byte, error){	
+	var err error	
+	fmt.Println("Creating account")
+	if len(args) != 2 {
+		return nil,errors.New("Incorrect number of arguments. Expecting 2")
+	}
+	var account = Account{ID: args[0], Name:args[1], Balance: 0}	
+	accountBytes, err := json.Marshal(&account)
+	if(err != nil){
+		return nil,err
+	}
+	err = stub.PutState(account.ID, accountBytes)
+	if(err != nil){
+		return nil,err	
+	}
+	return []byte("{\"Success:\",\"Account created succesfully\"}"),nil
+}
+
+func (t *SimpleChaincode) purchaseCredit(stub *shim.ChaincodeStub,args []string)([]byte, error){	
+	return nil,nil
+}
+func (t *SimpleChaincode) purchaseGame(stub *shim.ChaincodeStub,args []string)([]byte, error){	
+	return nil,nil
+}
+func (t *SimpleChaincode) addGame(stub *shim.ChaincodeStub,args []string)([]byte, error){	
+	return nil,nil
+}
+func (t *SimpleChaincode) deleteGame(stub *shim.ChaincodeStub,args []string)([]byte, error){	
+	return nil,nil
+}
+
+//Custom functions for getting state
+func (t *SimpleChaincode) readAccountState(stub *shim.ChaincodeStub,args []string)([]byte, error){
+	var id,jsonResp string	
+	var err error
+	if len(args) != 1 {
+		return nil,errors.New("Incorrect number of arguments, expecting 1")
+	}
+	id = args[0]
+	jsonResp =  args[0]
+	valAsbytes,err := stub.GetState(id)
+	if err != nil{
+		jsonResp = "{\"Error\":\"Failed to get state for "+ id +"\"}"
+		return nil, errors.New(jsonResp)
+	}
+
+	return valAsbytes,nil
 }
