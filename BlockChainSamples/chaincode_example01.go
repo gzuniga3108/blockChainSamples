@@ -16,10 +16,8 @@ limitations under the License.
 
 package main
 
-import (
-	"errors"
+import (	
 	"fmt"
-	"strconv"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 )
 
@@ -37,12 +35,12 @@ type User struct {
 // Init callback representing the invocation of a chaincode
 // This chaincode will manage two accounts A and B and will transfer X units from A to B upon invoke
 func (t *SimpleChaincode) Init(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
-	var err error	
+	//var err error	
 	return []byte("Code deployed"), nil
 }
 func (t *SimpleChaincode) Invoke(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	// Transaction makes payment of X units from A to B
-	var err error
+	//var err error
 	/*X, err = strconv.Atoi(args[0])
 	Aval = Aval - X
 	Bval = Bval + X
@@ -51,7 +49,7 @@ func (t *SimpleChaincode) Invoke(stub *shim.ChaincodeStub, function string, args
 		fmt.Printf("Error getting transaction timestamp: %s", err2)
 	}
 	fmt.Printf("Transaction Time: %v,Aval = %d, Bval = %d\n", ts, Aval, Bval)*/
-	return nil, err
+	return nil, nil
 }
 
 // Query callback representing the query of a chaincode
