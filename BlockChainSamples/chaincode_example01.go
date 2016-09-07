@@ -42,7 +42,10 @@ type Game struct{
 	Status string `json:"status"`
 }
 
-
+type SuccessResponse struct{
+	Concept string `json:concept`
+	Message string `json:message`
+}
 
 // Init callback representing the invocation of a chaincode
 // This chaincode will manage two accounts A and B and will transfer X units from A to B upon invoke
@@ -179,6 +182,7 @@ func (t *SimpleChaincode) addGame(stub *shim.ChaincodeStub,args []string)([]byte
 	}
 	var game Game	
 	var prefix string	
+	var succesResponse SuccessResponse
 	price,err := strconv.ParseFloat(args[3],64)	
 	if err != nil{
 		return nil,errors.New("Error parsing game price")	
@@ -193,7 +197,9 @@ func (t *SimpleChaincode) addGame(stub *shim.ChaincodeStub,args []string)([]byte
 	if err != nil{
 		return nil,errors.New("Error saving game information")
 	}
-	return []byte("\"Success\":\"Game information saved succesfully\""),nil		
+	succesResponse = SuccessResponse{Concept:"Success",Message:"Game information succesfully saved"}
+	sucessBytes,err := json.Marshal(&succesResponse)
+	return sucessBytes,nil		
 }
 func (t *SimpleChaincode) deleteGame(stub *shim.ChaincodeStub,args []string)([]byte, error){	
 	return nil,nil
