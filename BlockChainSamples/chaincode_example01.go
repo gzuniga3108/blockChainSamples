@@ -174,7 +174,7 @@ func (t *SimpleChaincode) purchaseGame(stub *shim.ChaincodeStub,args []string)([
 	return []byte(jsonResp),nil
 }
 func (t *SimpleChaincode) addGame(stub *shim.ChaincodeStub,args []string)([]byte, error){	
-	if len(args) != 4{
+	if len(args) != 3{
 		return nil,errors.New("Expecting 3 arguments")
 	}
 	var game Game	
@@ -189,7 +189,7 @@ func (t *SimpleChaincode) addGame(stub *shim.ChaincodeStub,args []string)([]byte
 	if err != nil{
 		return nil,errors.New("Error while marshaling game information")
 	}
-	err = stub.PutState(prefix+game.ID,gameBytes)
+	err = stub.PutState(prefix+"-"+game.ID,gameBytes)
 	if err != nil{
 		return nil,errors.New("Error saving game information")
 	}
@@ -224,7 +224,7 @@ func (t *SimpleChaincode) readGameInformation(stub *shim.ChaincodeStub,args []st
 	id = args[0]
 	gameBytes,err := stub.GetState(id)
 	if err != nil{
-		return nil,errors.New("Error retrieving information of the game with id : "+id)
+		return nil,errors.New("Error retrieving information of the game with id "+id)
 	}
 	return gameBytes,nil
 }
