@@ -36,7 +36,8 @@ type Account struct {
 }
 
 type Game struct{
-	Name   string `json:"id"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 	Price  float64 `json:"price"`
 	Status string `json:"status"`
 }
@@ -69,7 +70,10 @@ func (t *SimpleChaincode) Invoke(stub *shim.ChaincodeStub, function string, args
 func (t *SimpleChaincode) Query(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {	
 	if function == "readAccountState" {											
 		return t.readAccountState(stub,args)
-	}	
+	}
+	if function == "readGameInformation"{
+		return t.readGameInformation(stub,args)
+	}
 	return nil, errors.New("Received unknown function query")
 }
 
@@ -81,7 +85,7 @@ func main() {
 }
 
 //Custom functions for putting state
-func (t *SimpleChaincode) createAccount(stub *shim.ChaincodeStub,args []string)([]byte, error){		
+func (t *SimpleChaincode) createAccount(stub *shim.ChaincodeStub,args []string) ([]byte, error){		
 	fmt.Println("Creating account")
 	if len(args) != 2 {		
 		return nil,errors.New("Incorrect number of arguments. Expecting 2")
@@ -132,7 +136,7 @@ func (t *SimpleChaincode) purchaseGame(stub *shim.ChaincodeStub,args []string)([
 	var idAccount,id string	
 	var amount float64
 	var jsonResp string
-	if len(args) != 2{
+	if len(args) != 3{
 		return nil,errors.New("Expecting 2 arguments")
 	}
 	idAccount = args[0]
@@ -170,7 +174,26 @@ func (t *SimpleChaincode) purchaseGame(stub *shim.ChaincodeStub,args []string)([
 	return []byte(jsonResp),nil
 }
 func (t *SimpleChaincode) addGame(stub *shim.ChaincodeStub,args []string)([]byte, error){	
-	return nil,nil
+	if len(args) != 4{
+		return nil,errors.New("Expecting 3 arguments")
+	}
+	var game Game	
+	var prefix string	
+	price,err := strconv.ParseFloat(args[3],64)	
+	if err != nil{
+		return nil,errors.New("Error parsing game price")	
+	}
+	game = Game{ID: args[0], Name:args[1], Price: price, Status: "Active"}	
+	prefix = "gm"
+	gameBytes, err := json.Marshal(&game)
+	if err != nil{
+		return nil,errors.New("Error while marshaling game information")
+	}
+	err = stub.PutState(prefix+game.ID,gameBytes)
+	if err != nil{
+		return nil,errors.New("Error saving game information")
+	}
+	return []byte("\"Success\":\"Game information saved succesfully\""),nil		
 }
 func (t *SimpleChaincode) deleteGame(stub *shim.ChaincodeStub,args []string)([]byte, error){	
 	return nil,nil
@@ -189,7 +212,19 @@ func (t *SimpleChaincode) readAccountState(stub *shim.ChaincodeStub,args []strin
 	if err != nil{
 		jsonResp = "{\"Error\":\"Failed to get state for "+ id +"\"}"
 		return nil, errors.New(jsonResp)
-	}
-
+	}	
 	return valAsbytes,nil
+}
+
+func (t *SimpleChaincode) readGameInformation(stub *shim.ChaincodeStub,args []string)([]byte,error){
+	var id	string
+	if len(args) != 1{
+		return nil,errors.New("Expecting 1 argument")
+	}
+	id = args[0]
+	gameBytes,err := stub.GetState(id)
+	if err != nil{
+		return nil,errors.New("Error retrieving information of the game with id : "+id)
+	}
+	return gameBytes,nil
 }
