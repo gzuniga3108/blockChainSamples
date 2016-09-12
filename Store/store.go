@@ -17,6 +17,7 @@ type SimpleChaincode struct {
 
 type UserObject struct {
 	UserID    		string
+	UserPass		string
 	RecType   		string // Type = USER
 	Name      		string
 	UserType  		string //BY Buyer, SL Seller	
@@ -145,6 +146,7 @@ func InvokeFunction(fname string) func(stub *shim.ChaincodeStub, function string
 //////////////////////////////////////////////////////////////
 func QueryFunction(fname string) func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	QueryFunc := map[string]func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error){		
+		"GetUser":               GetUser,
 	}
 	return QueryFunc[fname]
 }
@@ -212,6 +214,71 @@ func InitLedger(stub *shim.ChaincodeStub, tableName string) error {
 	return err
 }
 
+func QueryLedger(stub *shim.ChaincodeStub, tableName string, args []string) ([]byte, error) {
+
+	var columns []shim.Column
+	nCol := GetNumberOfKeys(tableName)
+	for i := 0; i < nCol; i++ {
+		colNext := shim.Column{Value: &shim.Column_String_{String_: args[i]}}
+		columns = append(columns, colNext)
+	}
+
+	row, err := stub.GetRow(tableName, columns)
+	fmt.Println("Length or number of rows retrieved ", len(row.Columns))
+
+	if len(row.Columns) == 0 {
+		jsonResp := "{\"Error\":\"Failed retrieving data " + args[0] + ". \"}"
+		fmt.Println("Error retrieving data record for Key = ", args[0], "Error : ", jsonResp)
+		return nil, errors.New(jsonResp)
+	}
+
+	//fmt.Println("User Query Response:", row)
+	//jsonResp := "{\"Owner\":\"" + string(row.Columns[nCol].GetBytes()) + "\"}"
+	//fmt.Println("User Query Response:%s\n", jsonResp)
+	Avalbytes := row.Columns[nCol].GetBytes()
+
+	// Perform Any additional processing of data
+	fmt.Println("QueryLedger() : Successful - Proceeding to ProcessRequestType ")
+	err = ProcessQueryResult(stub, Avalbytes, args)
+	if err != nil {
+		fmt.Println("QueryLedger() : Cannot create object  : ", args[1])
+		jsonResp := "{\"QueryLedger() Error\":\" Cannot create Object for key " + args[0] + "\"}"
+		return nil, errors.New(jsonResp)
+	}
+	return Avalbytes, nil
+}
+
+func ProcessQueryResult(stub *shim.ChaincodeStub, Avalbytes []byte, args []string) error {
+
+	// Identify Record Type by scanning the args for one of the recTypes
+	// This is kind of a post-processor once the query fetches the results
+	// RecType is the style of programming in the punch card days ..
+	// ... well
+
+	var dat map[string]interface{}
+
+	if err := json.Unmarshal(Avalbytes, &dat); err != nil {
+		panic(err)
+	}
+
+	var recType string
+	recType = dat["RecType"].(string)
+		switch recType {
+		case "USER":
+			ur, err := JSONtoUser(Avalbytes) //
+			if err != nil {
+				return err
+			}
+			fmt.Println("ProcessRequestType() : ", ur)
+			return err	
+		default:
+
+			return errors.New("Unknown")
+	}
+	return nil
+
+}
+
 //Custom functios
 //////////////////////////////////////////////////////////
 // Converts an User Object to a JSON String
@@ -227,11 +294,26 @@ func UsertoJSON(user UserObject) ([]byte, error) {
 	return ajson, nil
 }
 
+//////////////////////////////////////////////////////////
+// Converts an User Object to a JSON String
+//////////////////////////////////////////////////////////
+func JSONtoUser(user []byte) (UserObject, error) {
+
+	ur := UserObject{}
+	err := json.Unmarshal(user, &ur)
+	if err != nil {
+		fmt.Println("JSONtoUser error: ", err)
+		return ur, err
+	}
+	fmt.Println("JSONtoUser created: ", ur)
+	return ur, err
+}
+
 func CreateUserObject(args []string) (UserObject, error) {
 	var err error
 	var aUser UserObject
 	// Check there are 5 Arguments
-	if len(args) != 5 {
+	if len(args) != 6 {
 		fmt.Println("CreateUserObject(): Incorrect number of arguments. Expecting 10 ")
 		return aUser, errors.New("CreateUserObject() : Incorrect number of arguments. Expecting 10 ")
 	}
@@ -240,7 +322,7 @@ func CreateUserObject(args []string) (UserObject, error) {
 	if err != nil {
 		return aUser, errors.New("CreateUserObject() : User ID should be an integer")
 	}
-	aUser = UserObject{args[0], args[1], args[2], args[3], args[4]}
+	aUser = UserObject{args[0], args[1], args[2], args[3], args[4], args[5]}
 	fmt.Println("CreateUserObject() : User Object : ", aUser)
 	return aUser, nil
 }
@@ -253,12 +335,12 @@ func CreateUser(stub *shim.ChaincodeStub, function string, args []string) ([]byt
 	}
 	buff, err := UsertoJSON(record) //
 	if err != nil {
-		fmt.Println("PostuserObject() : Failed Cannot create object buffer for write : ", args[1])
-		return nil, errors.New("PostUser(): Failed Cannot create object buffer for write : " + args[1])
+		fmt.Println("PostuserObject() : Failed Cannot create object buffer for write : ", args[0])
+		return nil, errors.New("PostUser(): Failed Cannot create object buffer for write : " + args[0])
 	} else {
 		// Update the ledger with the Buffer Data
 		// err = stub.PutState(args[0], buff)
-		keys := []string{args[0]}
+		keys := []string{args[0],args[1]}
 		err = UpdateLedger(stub, "UserTable", keys, buff)
 		if err != nil {
 			fmt.Println("PostUser() : write error while inserting record")
@@ -266,7 +348,7 @@ func CreateUser(stub *shim.ChaincodeStub, function string, args []string) ([]byt
 		}
 
 		// Post Entry into UserCatTable - i.e. User Category Table
-		keys = []string{"2016", args[3], args[0]}
+		keys = []string{"2016", args[0], args[1]}
 		err = UpdateLedger(stub, "UserCatTable", keys, buff)
 		if err != nil {
 			fmt.Println("PostUser() : write error while inserting recordinto UserCatTable \n")
@@ -276,6 +358,23 @@ func CreateUser(stub *shim.ChaincodeStub, function string, args []string) ([]byt
 	return buff, err
 }
 
+func GetUser(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
+	var err error
+	// Get the Object and Display it
+	Avalbytes, err := QueryLedger(stub, "UserTable", args)
+	if err != nil {
+		fmt.Println("GetUser() : Failed to Query Object ")
+		jsonResp := "{\"Error\":\"Failed to get  Object Data for " + args[0] + "\"}"
+		return nil, errors.New(jsonResp)
+	}
+	if Avalbytes == nil {
+		fmt.Println("GetUser() : Incomplete Query Object ")
+		jsonResp := "{\"Error\":\"Incomplete information about the key for " + args[0] + "\"}"
+		return nil, errors.New(jsonResp)
+	}
+	fmt.Println("GetUser() : Response : Successfull -")
+	return Avalbytes, nil
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 // A Map that holds TableNames and the number of Keys
@@ -286,7 +385,7 @@ func CreateUser(stub *shim.ChaincodeStub, function string, args []string) ([]byt
 //              "UserTable":        1, Key: UserID
 func GetNumberOfKeys(tname string) int {
 	TableMap := map[string]int{
-		"UserTable":        1,
+		"UserTable":        2,
 	}
 	return TableMap[tname]
 }
