@@ -340,7 +340,7 @@ func CreateUser(stub *shim.ChaincodeStub, function string, args []string) ([]byt
 	} else {
 		// Update the ledger with the Buffer Data
 		// err = stub.PutState(args[0], buff)
-		keys := []string{args[0],args[1]}
+		keys := []string{args[0]}
 		err = UpdateLedger(stub, "UserTable", keys, buff)
 		if err != nil {
 			fmt.Println("PostUser() : write error while inserting record")
@@ -348,7 +348,7 @@ func CreateUser(stub *shim.ChaincodeStub, function string, args []string) ([]byt
 		}
 
 		// Post Entry into UserCatTable - i.e. User Category Table
-		keys = []string{"2016", args[0], args[1]}
+		keys = []string{"2016", args[0]}
 		err = UpdateLedger(stub, "UserCatTable", keys, buff)
 		if err != nil {
 			fmt.Println("PostUser() : write error while inserting recordinto UserCatTable \n")
