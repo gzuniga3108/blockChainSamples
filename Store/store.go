@@ -178,6 +178,7 @@ func InvokeFunction(fname string) func(stub *shim.ChaincodeStub, function string
 func QueryFunction(fname string) func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	QueryFunc := map[string]func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error){		
 		"GetUser":               GetUser,
+		"GetItemListByCat":      GetItemListByCat,
 		/*"GetItem":               GetItem,		
 		"GetAuctionRequest":     GetAuctionRequest,
 		"GetTransaction":        GetTransaction,
