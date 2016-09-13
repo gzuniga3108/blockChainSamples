@@ -275,6 +275,32 @@ func ProcessQueryResult(stub *shim.ChaincodeStub, Avalbytes []byte, args []strin
 	}
 	return nil
 }
+
+func ReplaceLedgerEntry(stub *shim.ChaincodeStub, tableName string, keys []string, args []byte) error {
+
+	nKeys := GetNumberOfKeys(tableName)
+	if nKeys < 1 {
+		fmt.Println("Atleast 1 Key must be provided \n")
+	}
+	var columns []*shim.Column
+	for i := 0; i < nKeys; i++ {
+		col := shim.Column{Value: &shim.Column_String_{String_: keys[i]}}
+		columns = append(columns, &col)
+	}
+	lastCol := shim.Column{Value: &shim.Column_Bytes{Bytes: []byte(args)}}
+	columns = append(columns, &lastCol)
+	row := shim.Row{columns}
+	ok, err := stub.ReplaceRow(tableName, row)
+	if err != nil {
+		return fmt.Errorf("ReplaceLedgerEntry: Replace Row into "+tableName+" Table operation failed. %s", err)
+	}
+	if !ok {
+		return errors.New("ReplaceLedgerEntry: Replace Row into " + tableName + " Table failed. Row with given key " + keys[0] + " already exists")
+	}
+
+	fmt.Println("ReplaceLedgerEntry: Replace Row in ", tableName, " Table operation Successful. ")
+	return nil
+}
 /////////////////////////// END OF GENERAL FUNCTIONS ////////////////////////////////////////////////////////////////
 
 
@@ -364,7 +390,7 @@ func BuyCredit (stub *shim.ChaincodeStub, function string, args []string) ([]byt
 	var user UserObject	
 	var total float64
 	var getArgs []string
-	var createArgs []string
+	var err error
 
 	if(len(args) != 2){
 		return nil,errors.New("Incorrect number of arguments");
@@ -386,13 +412,14 @@ func BuyCredit (stub *shim.ChaincodeStub, function string, args []string) ([]byt
 	total = currentBalance + creditBought
 	user.CashBalance = strconv.FormatFloat(total, 'f', 6, 64)
 
-	createArgs[0]	= user.UserId
-	createArgs[1]	= user.Name
-	createArgs[2]	= user.Password
-	createArgs[3]	= user.RecType
-	createArgs[4]	= user.UserType
-	createArgs[5]	= user.CashBalance
+	buff, err := UsertoJSON(user)
+	keys := []string{user.UserId}	
 
-	return CreateUser(stub,"CreateUser",createArgs)
+
+	err = ReplaceLedgerEntry(stub, "UserTable", keys, buff)
+	if(err != nil){
+		return  nil,err
+	}
+	return []byte("Cash balance updated successfully"),nil
 }
 
