@@ -145,8 +145,7 @@ func InitLedger(stub *shim.ChaincodeStub, tableObject Table) error {
 
 func InvokeFunction(fname string) func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	InvokeFunc := map[string]func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error){
-		"CreateUser":			CreateUser,
-		"BuyCredit":			BuyCredit,
+		"CreateUser":			CreateUser,		
 		/*"PostItem":           PostItem,
 		"PostUser":           PostUser,
 		"PostAuctionRequest": PostAuctionRequest,
@@ -383,43 +382,4 @@ func GetUser(stub *shim.ChaincodeStub, function string, args []string) ([]byte, 
 	return Avalbytes, nil
 }
 /////////////////////////////////// END OF USER FUNCTIONS ////////////////////////////////////////////////////////
-
-
-//////////////////////////////// CREDIT FUNCTIONS //////////////////////////////////////////////////////////////
-func BuyCredit (stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
-	var user UserObject	
-	var total float64
-	var getArgs []string
-	var err error
-
-	if(len(args) != 2){
-		return nil,errors.New("Incorrect number of arguments");
-	}
-	getArgs[0] = args[0]
-	UserBytes,err := GetUser(stub,"GetUser",getArgs)
-	if(err != nil){
-		return nil,errors.New("Error finding user information")
-	}
-	user,err = JSONtoUser(UserBytes)
-	currentBalance,err := strconv.ParseFloat(user.CashBalance, 64)
-	if(err != nil){
-		return nil,errors.New("Error parsing cash balance")
-	}
-	creditBought,err := strconv.ParseFloat(args[1], 64)
-	if(err != nil){
-		return nil,errors.New("Error parsing cash balance")
-	}
-	total = currentBalance + creditBought
-	user.CashBalance = strconv.FormatFloat(total, 'f', 6, 64)
-
-	buff, err := UsertoJSON(user)
-	keys := []string{user.UserId}	
-
-
-	err = ReplaceLedgerEntry(stub, "UserTable", keys, buff)
-	if(err != nil){
-		return  nil,err
-	}
-	return []byte("Cash balance updated successfully"),nil
-}
 
