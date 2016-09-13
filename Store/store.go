@@ -383,3 +383,38 @@ func GetUser(stub *shim.ChaincodeStub, function string, args []string) ([]byte, 
 }
 /////////////////////////////////// END OF USER FUNCTIONS ////////////////////////////////////////////////////////
 
+
+
+////////////////////////////////// CREDIT FUNCTIONS ///////////////////////////////////////////////////////////
+func IncreaseBalance (stub *shim.ChaincodeStub, function string, args []string) ([]byte,error){
+	var getArgs []string
+	var total float64
+
+	if(len(args) != 2){
+		return nil,errors.New("Expecting 2 arguments")
+	}
+	getArgs[0] = args[0]
+	UserBytes,err := GetUser(stub,"GetUser",getArgs)
+	if(err != nil){
+		return nil,errors.New("Error retrieving user information")
+	}
+	user,err := JSONtoUser(UserBytes)
+	if(err != nil){
+		return nil,errors.New("Error parsing user information")
+	}
+	creditBought,err 	:= strconv.ParseFloat(args[1], 64)
+	actualBalance,err 	:= strconv.ParseFloat(user.CashBalance, 64)
+	total = creditBought + actualBalance
+	user.CashBalance = strconv.FormatFloat(total, 'f', 6, 64)
+	buff,err := UsertoJSON(user)
+	if(err != nil){
+		return nil,errors.New("Error creatig user object")
+	}
+	keys := []string{args[0]}
+	err = ReplaceLedgerEntry(stub,"UserTable",keys,buff)	
+	if(err != nil){
+		return nil,errors.New("Error updating ledger")	
+	}
+	return []byte("Cash Balance successfully updated"),nil
+}
+	
