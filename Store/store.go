@@ -43,9 +43,23 @@ type UserObject struct{
 	UserType 	string
 	CashBalance string
 }
+
+type ItemObject struct {
+	ItemID         string
+	RecType        string
+	ItemDesc       string
+	ItemDetail     string // Could included details such as who created the Art work if item is a Painting
+	ItemDate       string
+	ItemType       string
+	ItemSubject    string	
+	ItemImage	   string
+	CurrentOwnerID string // This is validated for a user registered record
+	ItemStatus	   string
+}
+
 ///////////////////////// GLOBAL VARIABLES ////////////////////////////////////////////////////////////
 //Tables that will be used in the application
-var appTables = []Table{Table{"UserTable",1}, Table{"UserCatTable",3}, Table{"ItemTable",1}, Table{"ItemCatTable",3}, Table{"ItemHistoryTable",4},Table{"TransTable",2}}
+var appTables = []Table{Table{"UserTable",1}, Table{"UserCatTable",3}, Table{"ItemTable",1}, Table{"ItemCatTable",4}, Table{"ItemHistoryTable",4},Table{"TransTable",2}}
 //Record types to store in tables
 var recType = []string{"ARTINV", "USER", "BID", "AUCREQ", "POSTTRAN", "OPENAUC", "CLAUC", "XFER", "VERIFY"}
 var globalKey = "2016"
@@ -145,10 +159,9 @@ func InitLedger(stub *shim.ChaincodeStub, tableObject Table) error {
 
 func InvokeFunction(fname string) func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	InvokeFunc := map[string]func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error){
-		"CreateUser":			CreateUser,	
-		"IncreaseBalance":		IncreaseBalance,	
-		/*"PostItem":           PostItem,
-		"PostUser":           PostUser,
+		"CreateUser":			CreateUser,			
+		"PostItem":           PostItem,
+		/*"PostUser":           PostUser,
 		"PostAuctionRequest": PostAuctionRequest,
 		"PostTransaction":    PostTransaction,
 		"PostBid":            PostBid,
@@ -301,6 +314,45 @@ func ReplaceLedgerEntry(stub *shim.ChaincodeStub, tableName string, keys []strin
 	fmt.Println("ReplaceLedgerEntry: Replace Row in ", tableName, " Table operation Successful. ")
 	return nil
 }
+
+func GetList(stub *shim.ChaincodeStub, tableName string, args []string) ([]shim.Row, error) {
+	var columns []shim.Column
+	nKeys := GetNumberOfKeys(tableName)
+	nCol := len(args)
+	if nCol < 1 {
+		fmt.Println("Atleast 1 Key must be provided \n")
+		return nil, errors.New("GetList failed. Must include at least key values")
+	}
+	for i := 0; i < nCol; i++ {
+		colNext := shim.Column{Value: &shim.Column_String_{String_: args[i]}}
+		columns = append(columns, colNext)
+	}
+	rowChannel, err := stub.GetRows(tableName, columns)
+	if err != nil {
+		return nil, fmt.Errorf("GetList operation failed. %s", err)
+	}
+	var rows []shim.Row
+	for {
+		select {
+		case row, ok := <-rowChannel:
+			if !ok {
+				rowChannel = nil
+			} else {
+				rows = append(rows, row)
+				//If required enable for debugging
+				//fmt.Println(row)
+			}
+		}
+		if rowChannel == nil {
+			break
+		}
+	}
+
+	fmt.Println("Number of Keys retrieved : ", nKeys)
+	fmt.Println("Number of rows retrieved : ", len(rows))
+	return rows, nil
+}
+
 /////////////////////////// END OF GENERAL FUNCTIONS ////////////////////////////////////////////////////////////////
 
 
@@ -386,36 +438,95 @@ func GetUser(stub *shim.ChaincodeStub, function string, args []string) ([]byte, 
 
 
 
-////////////////////////////////// CREDIT FUNCTIONS ///////////////////////////////////////////////////////////
-func IncreaseBalance (stub *shim.ChaincodeStub, function string, args []string) ([]byte,error){
-	var getArgs []string
-	var total float64
-
-	if(len(args) != 2){
-		return nil,errors.New("Expecting 2 arguments")
-	}
-	getArgs[0] = args[0]
-	UserBytes,err := GetUser(stub,"GetUser",getArgs)
-	if(err != nil){
-		return nil,errors.New("Error retrieving user information")
-	}
-	user,err := JSONtoUser(UserBytes)
-	if(err != nil){
-		return nil,errors.New("Error parsing user information")
-	}
-	creditBought,err 	:= strconv.ParseFloat(args[1], 64)
-	actualBalance,err 	:= strconv.ParseFloat(user.CashBalance, 64)
-	total = creditBought + actualBalance
-	user.CashBalance = strconv.FormatFloat(total, 'f', 6, 64)
-	buff,err := UsertoJSON(user)
-	if(err != nil){
-		return nil,errors.New("Error creatig user object")
-	}
-	keys := []string{args[0]}
-	err = ReplaceLedgerEntry(stub,"UserTable",keys,buff)	
-	if(err != nil){
-		return nil,errors.New("Error updating ledger")	
-	}
-	return []byte("Cash Balance successfully updated"),nil
-}
 	
+/////////////////////////////////////// ITEMS FUNCTIONS //////////////////////////////////////////////////////
+func PostItem(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
+	itemObject, err := CreateItemObject(args[0:])
+	if err != nil {
+		fmt.Println("PostItem(): Cannot create item object \n")
+		return nil, err
+	}	
+	// Convert Item Object to JSON
+	buff, err := ItemtoJSON(itemObject) //
+	if err != nil {
+		fmt.Println("PostItem() : Failed Cannot create object buffer for write : ", args[1])
+		return nil, errors.New("PostItem(): Failed Cannot create object buffer for write : " + args[1])
+	} else {		
+		keys := []string{args[0]}
+		err = UpdateLedger(stub, "ItemTable", keys, buff)
+		if err != nil {
+			fmt.Println("PostItem() : write error while inserting record\n")
+			return buff, err
+		}		
+		keys = []string{globalKey, args[5], args[0], args[9]}
+		err = UpdateLedger(stub, "ItemCatTable", keys, buff)
+		if err != nil {
+			fmt.Println("PostItem() : Write error while inserting record into ItemCatTable \n")
+			return buff, err
+		}
+	}	
+	return []byte("Item posted successfully"), nil
+}
+
+func CreateItemObject(args []string) (ItemObject, error) {
+	var err error
+	var myItem ItemObject	
+	if len(args) != 10 {
+		fmt.Println("CreateItemObject(): Incorrect number of arguments. Expecting 10 ")
+		return myItem, errors.New("CreateItemObject(): Incorrect number of arguments. Expecting 10 ")
+	}
+	// Validate ItemID is an integer
+	_, err = strconv.Atoi(args[0])
+	if err != nil {
+		fmt.Println("CreateItemObject():ID should be an integer create failed! ")
+		return myItem, errors.New("CreateItemObject():ID should be an integer create failed!")
+	}
+	// Append the AES Key, The Encrypted Image Byte Array and the file type
+	myItem = ItemObject{args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8],args[0]}	
+	return myItem, nil
+}
+
+func ItemtoJSON(item ItemObject) ([]byte, error) {
+	ijson, err := json.Marshal(item)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	return ijson, nil
+}
+
+
+func JSONtoItem(data []byte) (ItemObject, error) {
+	ar := ItemObject{}
+	err := json.Unmarshal([]byte(data), &ar)
+	if err != nil {
+		fmt.Println("Unmarshal failed : ", err)
+	}
+	return ar, err
+}
+
+func GetItemListByCat(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {	
+	if len(args) < 1 {
+		fmt.Println("GetItemListByCat(): Incorrect number of arguments. Expecting 1 ")		
+		return nil, errors.New("CreateItemObject(): Incorrect number of arguments. Expecting 1 ")
+	}
+	rows, err := GetList(stub, "ItemCatTable", args)
+	if err != nil {
+		return nil, fmt.Errorf("GetItemListByCat() operation failed. Error GetList: %s", err)
+	}
+	nCol := GetNumberOfKeys("ItemCatTable")
+	tlist := make([]ItemObject, len(rows))
+	for i := 0; i < len(rows); i++ {
+		ts := rows[i].Columns[nCol].GetBytes()
+		io, err := JSONtoItem(ts)
+		if err != nil {
+			fmt.Println("() Failed : Ummarshall error")
+			return nil, fmt.Errorf("GetItemListByCat() operation failed. %s", err)
+		}		
+		tlist[i] = io
+	}
+	jsonRows, _ := json.Marshal(tlist)
+	//fmt.Println("All Items : ", jsonRows)
+	return jsonRows, nil
+}
+
