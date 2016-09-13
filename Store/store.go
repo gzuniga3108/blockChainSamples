@@ -145,7 +145,8 @@ func InitLedger(stub *shim.ChaincodeStub, tableObject Table) error {
 
 func InvokeFunction(fname string) func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	InvokeFunc := map[string]func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error){
-		"CreateUser":			CreateUser,		
+		"CreateUser":			CreateUser,	
+		"IncreaseBalance":		IncreaseBalance,	
 		/*"PostItem":           PostItem,
 		"PostUser":           PostUser,
 		"PostAuctionRequest": PostAuctionRequest,
