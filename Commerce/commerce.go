@@ -533,10 +533,10 @@ func GetItemListByCat(stub *shim.ChaincodeStub,function string,args []string)([]
 		return nil, fmt.Errorf("GetItemListByCat() operation failed. Error marshaling JSON: %s", err)
 	}
 	nCol := GetNumberOfKeys("ItemCatTable")
-	tlist := make([]UserObject, len(rows))
+	tlist := make([]ItemObject, len(rows))
 	for i := 0; i < len(rows); i++ {
 		ts := rows[i].Columns[nCol].GetBytes()
-		uo, err := JSONtoUser(ts)
+		uo, err := JsontoItem(ts)
 		if err != nil {
 			fmt.Println("GetItemListByCat() Failed : Ummarshall error")
 			return nil, fmt.Errorf("GetItemListByCat() operation failed. %s", err)
@@ -557,10 +557,10 @@ func GetItemListByOwner(stub *shim.ChaincodeStub,function string,args []string)(
 		return nil, fmt.Errorf("GetItemListByOwner() operation failed. Error marshaling JSON: %s", err)
 	}
 	nCol := GetNumberOfKeys("ItemOwnerTable")
-	tlist := make([]UserObject, len(rows))
+	tlist := make([]ItemObject, len(rows))
 	for i := 0; i < len(rows); i++ {
 		ts := rows[i].Columns[nCol].GetBytes()
-		uo, err := JSONtoUser(ts)
+		uo, err := JsontoItem(ts)
 		if err != nil {
 			fmt.Println("GetItemListByOwner() Failed : Ummarshall error")
 			return nil, fmt.Errorf("GetItemListByOwner() operation failed. %s", err)
