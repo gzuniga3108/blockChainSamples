@@ -130,6 +130,10 @@ func InitLedger(stub *shim.ChaincodeStub, tableName string) error {
 func InvokeFunction(fname string) func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	InvokeFunc := map[string]func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error){		
 		"CreateUser":	CreateUser,
+		"CreateItem":	CreateItem,
+		"UpdateUser":	UpdateUser,
+		"UpdateItem":	UpdateItem,
+
 	}
 	return InvokeFunc[fname]
 }
@@ -137,6 +141,7 @@ func InvokeFunction(fname string) func(stub *shim.ChaincodeStub, function string
 func QueryFunction(fname string) func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	QueryFunc := map[string]func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error){			
 		"GetUser":	GetUser,
+		"GetItem":	GetItem,
 	}
 	return QueryFunc[fname]
 }
@@ -162,6 +167,30 @@ func UpdateLedger(stub *shim.ChaincodeStub, tableName string, keys []string, arg
 		return errors.New("UpdateLedger: InsertRow into " + tableName + " Table failed. Row with given key " + keys[0] + " already exists")
 	}
 	fmt.Println("UpdateLedger: InsertRow into ", tableName, " Table operation Successful. ")
+	return nil
+}
+
+func ReplaceLedgerEntry(stub *shim.ChaincodeStub, tableName string, keys []string, args []byte) error {
+	nKeys := GetNumberOfKeys(tableName)
+	if nKeys < 1 {
+		fmt.Println("Atleast 1 Key must be provided \n")
+	}
+	var columns []*shim.Column
+	for i := 0; i < nKeys; i++ {
+		col := shim.Column{Value: &shim.Column_String_{String_: keys[i]}}
+		columns = append(columns, &col)
+	}
+	lastCol := shim.Column{Value: &shim.Column_Bytes{Bytes: []byte(args)}}
+	columns = append(columns, &lastCol)
+	row := shim.Row{columns}
+	ok, err := stub.ReplaceRow(tableName, row)
+	if err != nil {
+		return fmt.Errorf("ReplaceLedgerEntry: Replace Row into "+tableName+" Table operation failed. %s", err)
+	}
+	if !ok {
+		return errors.New("ReplaceLedgerEntry: Replace Row into " + tableName + " Table failed. Row with given key " + keys[0] + " already exists")
+	}
+	fmt.Println("ReplaceLedgerEntry: Replace Row in ", tableName, " Table operation Successful. ")
 	return nil
 }
 
@@ -280,6 +309,24 @@ func GetUser(stub *shim.ChaincodeStub, function string, args []string) ([]byte, 
 	return Avalbytes, nil
 }
 
+func  UpdateUser(stub *shim.ChaincodeStub,function string,args []string)([]byte,error){
+	var aUser UserObject
+	if len(args) < 6{
+		return nil,errors.New("Expecting 6 parameters")
+	}
+	aUser = UserObject{args[0], args[1], args[2], args[3], args[4], args[5]}
+	userBytes,err := UsertoJSON(aUser)
+	if err != nil{
+		return nil,errors.New("Error creating userr bytes")
+	}
+	keys := []string{args[0]}
+	err = ReplaceLedgerEntry(stub,"UserTable",keys,userBytes)
+	if err != nil{
+		return nil,errors.New("Error: An error has ocured while creating the user")
+	}
+	return []byte("User updated successfully"),nil	
+}
+
 func JSONtoUser(user []byte) (UserObject, error) {
 	ur := UserObject{}
 	err := json.Unmarshal(user, &ur)
@@ -300,6 +347,8 @@ func UsertoJSON(user UserObject) ([]byte, error) {
 	fmt.Println("UsertoJSON created: ", ajson)
 	return ajson, nil
 }
+
+
 
 
 //////////////////////////////////////////// ITEMS FUNCTION /////////////////////////////////////////////////////////
@@ -332,6 +381,25 @@ func GetItem(stub *shim.ChaincodeStub,function string, args []string)([]byte,err
 	}
 	return Avalbytes,nil
 }
+
+func UpdateItem(stub *shim.ChaincodeStub, function string, args []string)([]byte,error){
+	var oItem ItemObject
+	if len(args) < 9{
+		return nil,errors.New("Error: Expecting 9 parameters")
+	}
+	oItem = ItemObject{args[0],args[1],args[2],args[3],args[4],args[5],args[6],args[7],args[8]}
+	itemBytes,err := ItemToJson(oItem) 
+	if err != nil{
+		return nil,err
+	}
+	keys := []string{args[0]}
+	err = ReplaceLedgerEntry(stub,"ItemTable",keys,itemBytes)
+	if err != nil{
+		return nil,errors.New("Error: Cannot save item")
+	}
+	return []byte("Item created successfully"),nil
+}
+
 
 func JsontoItem(itemBytes []byte)(ItemObject,error){
 	oItem := ItemObject{}
