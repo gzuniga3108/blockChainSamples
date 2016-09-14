@@ -12,7 +12,7 @@ import (
 
 ///////////////////////////// GLOBAL VARIABLES ///////////////////////////////////
 var globalKey = "2016"
-var appTables = []string{"UserTable","ItemTable","TransactionTable"} 
+var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable","ItemDetailTable","TransactionDetailTable"} 
 var recType = []string{"USER","ITEM","TRANS"}
 
 
@@ -47,6 +47,7 @@ type TransactionObject struct{
 	PrevOwner		string
 	NewOwner		string
 	PaidQty			string
+	TransType		string
 	RecType 		string //TRANS
 }
 
@@ -153,6 +154,7 @@ func QueryFunction(fname string) func(stub *shim.ChaincodeStub, function string,
 		"GetUser":			GetUser,
 		"GetItem":			GetItem,
 		"GetTransaction":	GetTransaction,
+		"GetUserList":		GetUserList,
 	}
 	return QueryFunc[fname]
 }
@@ -209,12 +211,12 @@ func GetNumberOfKeys(tname string) int {
 	switch tname{
 		case "UserTable":
 			return 1 //UserId
-		case "UserCatTable":
+		case "UserDetailTable":
 			return 3 //GlobalKey,UserType,UserId
-		case "ItemTable":
-			return 1
-		case "TransactionTable":
-			return 1
+		case "ItemTable": 
+			return 1 //ItemId
+		case "TransactionTable": 
+			return 1 //TransactionID			
 	}
 	return 0
 }
@@ -291,6 +293,41 @@ func ProcessQueryResult(stub *shim.ChaincodeStub, Avalbytes []byte, args []strin
 }
 
 
+func GetList(stub *shim.ChaincodeStub, tableName string, args []string) ([]shim.Row, error) {
+	var columns []shim.Column
+	nKeys := GetNumberOfKeys(tableName)
+	nCol := len(args)
+	if nCol < 1 {
+		fmt.Println("Atleast 1 Key must be provided \n")
+		return nil, errors.New("GetList failed. Must include at least key values")
+	}
+	for i := 0; i < nCol; i++ {
+		colNext := shim.Column{Value: &shim.Column_String_{String_: args[i]}}
+		columns = append(columns, colNext)
+	}
+	rowChannel, err := stub.GetRows(tableName, columns)
+	if err != nil {
+		return nil, fmt.Errorf("GetList operation failed. %s", err)
+	}
+	var rows []shim.Row
+	for {
+		select {
+		case row, ok := <-rowChannel:
+			if !ok {
+				rowChannel = nil
+			} else {
+				rows = append(rows, row)				
+			}
+		}
+		if rowChannel == nil {
+			break
+		}
+	}
+	fmt.Println("Number of Keys retrieved : ", nKeys)
+	fmt.Println("Number of rows retrieved : ", len(rows))
+	return rows, nil
+}
+
 ///////////////////////// USER'S FUNCTIONS ////////////////////////////////////////////////////////////////////////////////
 
 func CreateUser(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
@@ -307,6 +344,12 @@ func CreateUser(stub *shim.ChaincodeStub, function string, args []string) ([]byt
 	err = UpdateLedger(stub,"UserTable",keys,userBytes)
 	if err != nil{
 		return nil,errors.New("Error: An error has ocured while creating the user")
+	}
+	//Saving user details table(
+	keys = []string{globalKey,args[4],args[0]}
+	err = UpdateLedger(stub,"UserDetailTable",keys,userBytes)
+	if err != nil{
+		return nil,err
 	}
 	return []byte("User created successfully"),nil
 }
@@ -327,6 +370,30 @@ func GetUser(stub *shim.ChaincodeStub, function string, args []string) ([]byte, 
 	}
 	fmt.Println("GetUser() : Response : Successfull -")
 	return Avalbytes, nil
+}
+
+func GetUserList(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
+	if len(args) < 1 {
+		fmt.Println("GetUserList(): Incorrect number of arguments. Expecting 1 ")		
+		return nil, errors.New("CreateUserObject(): Incorrect number of arguments. Expecting 1 ")
+	}
+	rows, err := GetList(stub, "UserDetailTable", args)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserList() operation failed. Error marshaling JSON: %s", err)
+	}
+	nCol := GetNumberOfKeys("UserDetailTable")
+	tlist := make([]UserObject, len(rows))
+	for i := 0; i < len(rows); i++ {
+		ts := rows[i].Columns[nCol].GetBytes()
+		uo, err := JSONtoUser(ts)
+		if err != nil {
+			fmt.Println("GetUserList() Failed : Ummarshall error")
+			return nil, fmt.Errorf("GetUserList() operation failed. %s", err)
+		}
+		tlist[i] = uo
+	}
+	jsonRows, _ := json.Marshal(tlist)	
+	return jsonRows, nil
 }
 
 func  UpdateUser(stub *shim.ChaincodeStub,function string,args []string)([]byte,error){
@@ -440,10 +507,10 @@ func ItemToJson(oItem ItemObject)([]byte,error){
 ////////////////////////// TRANSACTION'S FUNCTION //////////////////////////////////////////////////////////////
 func NewTransaction (stub *shim.ChaincodeStub,function string, args []string)([]byte,error){
 	var oTransaction TransactionObject
-	if len(args) != 6{
+	if len(args) != 7{
 		return nil,errors.New("Error: Expecting 6 arguments")
 	}
-	oTransaction = TransactionObject{args[0],args[1],args[2],args[3],args[4],args[5]}
+	oTransaction = TransactionObject{args[0],args[1],args[2],args[3],args[4],args[5],args[6]}
 	transactionBytes,err := TransactionToJson(oTransaction)
 	if err != nil{
 		return nil,errors.New("Error: Cannot get transaction bytes")
