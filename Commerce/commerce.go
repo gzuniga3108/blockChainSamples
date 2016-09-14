@@ -12,7 +12,7 @@ import (
 
 ///////////////////////////// GLOBAL VARIABLES ///////////////////////////////////
 var globalKey = "2016"
-var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable","ItemCatTable","ItemOwnerTable"} 
+var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable","ItemCatTable","ItemOwnerTable","TransPrevOwnerTable","TransNewOwnerTable"} 
 var recType = []string{"USER","ITEM","TRANS"}
 
 
@@ -151,12 +151,14 @@ func InvokeFunction(fname string) func(stub *shim.ChaincodeStub, function string
 
 func QueryFunction(fname string) func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	QueryFunc := map[string]func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error){			
-		"GetUser":				GetUser,
-		"GetItem":				GetItem,
-		"GetTransaction":		GetTransaction,
-		"GetUserList":			GetUserList,
-		"GetItemListByCat": 	GetItemListByCat,
-		"GetItemListByOwner":	GetItemListByOwner,
+		"GetUser":					GetUser,
+		"GetItem":					GetItem,
+		"GetTransaction":			GetTransaction,
+		"GetUserList":				GetUserList,
+		"GetItemListByCat": 		GetItemListByCat,
+		"GetItemListByOwner":		GetItemListByOwner,
+		"GetTransListPrevOwner":	GetTransListPrevOwner,
+		"GetTransListNewOwner":		GetTransListNewOwner,
 	}
 	return QueryFunc[fname]
 }
@@ -223,6 +225,10 @@ func GetNumberOfKeys(tname string) int {
 			return 4 //GlobalKey,Owner,Status,ItemId
 		case "TransactionTable": 
 			return 1 //TransactionID			
+		case "TransPrevOwnerTable":
+			return 4
+		case "TransNewOwnerTable":
+			return 4			
 	}
 	return 0
 }
@@ -472,7 +478,7 @@ func CreateItem(stub *shim.ChaincodeStub, function string, args []string)([]byte
 		return nil,err
 	}
 	//Insert into ItemOwnerTable
-	keys = []string{globalKey,args[8],args[7],args[0]}
+	keys = []string{globalKey,args[4],args[5],args[0]}
 	err = UpdateLedger(stub,"ItemOwnerTable",keys,itemBytes)
 	if err != nil{
 		return nil,err
@@ -515,7 +521,7 @@ func UpdateItem(stub *shim.ChaincodeStub, function string, args []string)([]byte
 		return nil,err
 	}
 	//Insert into ItemOwnerTable
-	keys = []string{globalKey,args[8],args[7],args[0]}
+	keys = []string{globalKey,args[4],args[5],args[0]}
 	err = UpdateLedger(stub,"ItemOwnerTable",keys,itemBytes)
 	if err != nil{
 		return nil,err
@@ -603,6 +609,18 @@ func NewTransaction (stub *shim.ChaincodeStub,function string, args []string)([]
 	 if err != nil{
 	 	return nil,errors.New("Error: An error has ocured while saving the transaction")
 	 }
+	 //Save record for prev owner
+	 keys = []string{globalKey,args[2],args[5],args[0]}
+	 err = UpdateLedger(stub,"TransPrevOwnerTable",keys,transactionBytes)
+	 if err != nil{
+	 	return nil,err
+	 }
+	 //Save record for new owner
+	 keys = []string{globalKey,args[3],args[5],args[0]}
+	 err = UpdateLedger(stub,"TransNewOwnerTable",keys,transactionBytes)
+	 if err != nil{
+	 	return nil,err
+	 }
 	 return []byte("Transation has been successfully saved"),nil
 }
 
@@ -616,6 +634,55 @@ func GetTransaction(stub *shim.ChaincodeStub,function string, args []string)([]b
 		return nil,errors.New("{\"Error\":\"Transaction information is incomplete\"}")
 	}
 	return Avalbytes,nil
+}
+
+func GetTransListNewOwner(stub *shim.ChaincodeStub,function string, args []string)([]byte,error){
+	if len(args) < 1 {
+		fmt.Println("GetTransListNewOwner(): Incorrect number of arguments. Expecting 1 ")		
+		return nil, errors.New("GetTransListNewOwner(): Incorrect number of arguments. Expecting 1 ")
+	}
+	rows, err := GetList(stub, "TransNewOwnerTable", args)
+	if err != nil {
+		return nil, fmt.Errorf("GetTransListNewOwner() operation failed. Error marshaling JSON: %s", err)
+	}
+	nCol := GetNumberOfKeys("TransNewOwnerTable")
+	tlist := make([]TransactionObject, len(rows))
+	for i := 0; i < len(rows); i++ {
+		ts := rows[i].Columns[nCol].GetBytes()
+		uo, err := JsonToTransaction(ts)
+		if err != nil {
+			fmt.Println("GetTransListNewOwner() Failed : Ummarshall error")
+			return nil, fmt.Errorf("GetTransListNewOwner() operation failed. %s", err)
+		}
+		tlist[i] = uo
+	}
+	jsonRows, _ := json.Marshal(tlist)	
+	return jsonRows, nil
+}
+
+
+func GetTransListPrevOwner(stub *shim.ChaincodeStub,function string, args []string)([]byte,error){
+	if len(args) < 1 {
+		fmt.Println("GetTransListPrevOwner(): Incorrect number of arguments. Expecting 1 ")		
+		return nil, errors.New("GetTransListPrevOwner(): Incorrect number of arguments. Expecting 1 ")
+	}
+	rows, err := GetList(stub, "TransPrevOwnerTable", args)
+	if err != nil {
+		return nil, fmt.Errorf("GetTransListPrevOwner() operation failed. Error marshaling JSON: %s", err)
+	}
+	nCol := GetNumberOfKeys("TransPrevOwnerTable")
+	tlist := make([]TransactionObject, len(rows))
+	for i := 0; i < len(rows); i++ {
+		ts := rows[i].Columns[nCol].GetBytes()
+		uo, err := JsonToTransaction(ts)
+		if err != nil {
+			fmt.Println("GetTransListPrevOwner() Failed : Ummarshall error")
+			return nil, fmt.Errorf("GetTransListPrevOwner() operation failed. %s", err)
+		}
+		tlist[i] = uo
+	}
+	jsonRows, _ := json.Marshal(tlist)	
+	return jsonRows, nil
 }
 
 func JsonToTransaction(transactionBytes []byte)(TransactionObject,error){	
