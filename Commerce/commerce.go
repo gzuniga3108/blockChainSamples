@@ -12,7 +12,7 @@ import (
 
 ///////////////////////////// GLOBAL VARIABLES ///////////////////////////////////
 var globalKey = "2016"
-var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable"} 
+var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable","ItemCatTable","ItemOwnerTable"} 
 var recType = []string{"USER","ITEM","TRANS"}
 
 
@@ -215,6 +215,10 @@ func GetNumberOfKeys(tname string) int {
 			return 3 //GlobalKey,UserType,UserId
 		case "ItemTable": 
 			return 1 //ItemId
+		case "ItemCatTable":
+			return 4 //GlobalKey,Status,ItemType,ItemId
+		case "ItemOwnerTable":
+			return 4 //GlobalKey,Owner,Status,ItemId
 		case "TransactionTable": 
 			return 1 //TransactionID			
 	}
@@ -409,6 +413,12 @@ func  UpdateUser(stub *shim.ChaincodeStub,function string,args []string)([]byte,
 	if err != nil{
 		return nil,errors.New("Error: An error has ocured while creating the user")
 	}
+	//Saving user details table(
+	keys = []string{globalKey,args[4],args[0]}
+	err = UpdateLedger(stub,"UserDetailTable",keys,userBytes)
+	if err != nil{
+		return nil,err
+	}
 	return []byte("User updated successfully"),nil	
 }
 
@@ -452,6 +462,19 @@ func CreateItem(stub *shim.ChaincodeStub, function string, args []string)([]byte
 	if err != nil{
 		return nil,errors.New("Error: Cannot save item")
 	}
+	//Insert into ItemCatTable
+	//GlobalKey,Status,ItemType,ItemId
+	keys = []string{globalKey,args[5],args[7],args[0]}
+	err = UpdateLedger(stub,"ItemCatTable",keys,itemBytes)
+	if err != nil{
+		return nil,err
+	}
+	//Insert into ItemOwnerTable
+	keys = []string{globalKey,args[8],args[7],args[0]}
+	err = UpdateLedger(stub,"ItemOwnerTable",keys,itemBytes)
+	if err != nil{
+		return nil,err
+	}
 	return []byte("Item created successfully"),nil
 }
 
@@ -482,9 +505,69 @@ func UpdateItem(stub *shim.ChaincodeStub, function string, args []string)([]byte
 	if err != nil{
 		return nil,errors.New("Error: Cannot save item")
 	}
+	//Insert into ItemCatTable
+	//GlobalKey,Status,ItemType,ItemId
+	keys = []string{globalKey,args[5],args[7],args[0]}
+	err = UpdateLedger(stub,"ItemCatTable",keys,itemBytes)
+	if err != nil{
+		return nil,err
+	}
+	//Insert into ItemOwnerTable
+	keys = []string{globalKey,args[8],args[7],args[0]}
+	err = UpdateLedger(stub,"ItemOwnerTable",keys,itemBytes)
+	if err != nil{
+		return nil,err
+	}
 	return []byte("Item created successfully"),nil
 }
 
+func GetItemListByCat(stub *shim.ChaincodeStub,function string,args []string)([]byte,error){
+	if len(args) < 1 {
+		fmt.Println("GetItemListByCat(): Incorrect number of arguments. Expecting 1 ")		
+		return nil, errors.New("GetItemListByCat(): Incorrect number of arguments. Expecting 1 ")
+	}
+	rows, err := GetList(stub, "ItemCatTable", args)
+	if err != nil {
+		return nil, fmt.Errorf("GetItemListByCat() operation failed. Error marshaling JSON: %s", err)
+	}
+	nCol := GetNumberOfKeys("ItemCatTable")
+	tlist := make([]UserObject, len(rows))
+	for i := 0; i < len(rows); i++ {
+		ts := rows[i].Columns[nCol].GetBytes()
+		uo, err := JSONtoUser(ts)
+		if err != nil {
+			fmt.Println("GetItemListByCat() Failed : Ummarshall error")
+			return nil, fmt.Errorf("GetItemListByCat() operation failed. %s", err)
+		}
+		tlist[i] = uo
+	}
+	jsonRows, _ := json.Marshal(tlist)	
+	return jsonRows, nil
+}
+
+func GetItemListByOwner(stub *shim.ChaincodeStub,function string,args []string)([]byte,error){
+	if len(args) < 1 {
+		fmt.Println("GetItemListByOwner(): Incorrect number of arguments. Expecting 1 ")		
+		return nil, errors.New("GetItemListByOwner(): Incorrect number of arguments. Expecting 1 ")
+	}
+	rows, err := GetList(stub, "ItemOwnerTable", args)
+	if err != nil {
+		return nil, fmt.Errorf("GetItemListByOwner() operation failed. Error marshaling JSON: %s", err)
+	}
+	nCol := GetNumberOfKeys("ItemOwnerTable")
+	tlist := make([]UserObject, len(rows))
+	for i := 0; i < len(rows); i++ {
+		ts := rows[i].Columns[nCol].GetBytes()
+		uo, err := JSONtoUser(ts)
+		if err != nil {
+			fmt.Println("GetItemListByOwner() Failed : Ummarshall error")
+			return nil, fmt.Errorf("GetItemListByOwner() operation failed. %s", err)
+		}
+		tlist[i] = uo
+	}
+	jsonRows, _ := json.Marshal(tlist)	
+	return jsonRows, nil
+}
 
 func JsontoItem(itemBytes []byte)(ItemObject,error){
 	oItem := ItemObject{}
