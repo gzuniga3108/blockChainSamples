@@ -13,7 +13,7 @@ import (
 ///////////////////////////// GLOBAL VARIABLES ///////////////////////////////////
 var globalKey = "2016"
 var appTables = []string{"UserTable","ItemTable"} 
-var recType = []string{"USER"}
+var recType = []string{"USER","ITEM"}
 
 
 ///////////////////////////// OBJECTS STRUCTURES /////////////////////////////////
