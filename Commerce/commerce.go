@@ -12,8 +12,8 @@ import (
 
 ///////////////////////////// GLOBAL VARIABLES ///////////////////////////////////
 var globalKey = "2016"
-var appTables = []string{"UserTable","ItemTable"} 
-var recType = []string{"USER","ITEM"}
+var appTables = []string{"UserTable","ItemTable","TransactionTable"} 
+var recType = []string{"USER","ITEM","TRANS"}
 
 
 ///////////////////////////// OBJECTS STRUCTURES /////////////////////////////////
@@ -39,6 +39,15 @@ type  ItemObject struct{
 	Image			string
 	ItemType	   	string
 	RecType 		string //ITEM
+}
+
+type TransactionObject struct{
+	TransactionId 	string
+	ItemId 			string
+	PrevOwner		string
+	NewOwner		string
+	PaidQty			string
+	RecType 		string //TRANS
 }
 
 //////////////////////// BASIC FUNCTIONS ////////////////////////////////////////
@@ -129,10 +138,11 @@ func InitLedger(stub *shim.ChaincodeStub, tableName string) error {
 
 func InvokeFunction(fname string) func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	InvokeFunc := map[string]func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error){		
-		"CreateUser":	CreateUser,
-		"CreateItem":	CreateItem,
-		"UpdateUser":	UpdateUser,
-		"UpdateItem":	UpdateItem,
+		"CreateUser":		CreateUser,
+		"CreateItem":		CreateItem,
+		"UpdateUser":		UpdateUser,
+		"UpdateItem":		UpdateItem,
+		"NewTransaction": 	NewTransaction,
 
 	}
 	return InvokeFunc[fname]
@@ -140,8 +150,9 @@ func InvokeFunction(fname string) func(stub *shim.ChaincodeStub, function string
 
 func QueryFunction(fname string) func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	QueryFunc := map[string]func(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error){			
-		"GetUser":	GetUser,
-		"GetItem":	GetItem,
+		"GetUser":			GetUser,
+		"GetItem":			GetItem,
+		"GetTransaction":	GetTransaction,
 	}
 	return QueryFunc[fname]
 }
@@ -201,6 +212,8 @@ func GetNumberOfKeys(tname string) int {
 		case "UserCatTable":
 			return 3 //GlobalKey,UserType,UserId
 		case "ItemTable":
+			return 1
+		case "TransactionTable":
 			return 1
 	}
 	return 0
@@ -263,6 +276,13 @@ func ProcessQueryResult(stub *shim.ChaincodeStub, Avalbytes []byte, args []strin
 			return err
 		}
 		fmt.Println("ProcessRequestType() : ", oItem)
+		return err
+	case "TRANSACTION":
+		oTransaction,err := JsonToTransaction(Avalbytes)
+		if err != nil{
+			return err
+		}
+		fmt.Println("ProcessRequestType() : ", oTransaction)
 		return err
 	default:
 		return errors.New("Unknown")
@@ -351,7 +371,7 @@ func UsertoJSON(user UserObject) ([]byte, error) {
 
 
 
-//////////////////////////////////////////// ITEMS FUNCTION /////////////////////////////////////////////////////////
+//////////////////////////////////////////// ITEM'S FUNCTION /////////////////////////////////////////////////////////
 func CreateItem(stub *shim.ChaincodeStub, function string, args []string)([]byte,error){
 	var oItem ItemObject
 	if len(args) < 9{
@@ -417,5 +437,51 @@ func ItemToJson(oItem ItemObject)([]byte,error){
 	}
 	return itemBytes,nil
 }
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////// TRANSACTION'S FUNCTION //////////////////////////////////////////////////////////////
+func NewTransaction (stub *shim.ChaincodeStub,function string, args []string)([]byte,error){
+	var oTransaction TransactionObject
+	if len(args) != 6{
+		return nil,errors.New("Error: Expecting 6 arguments")
+	}
+	oTransaction = TransactionObject{args[0],args[1],args[2],args[3],args[4],args[5]}
+	transactionBytes,err := TransactionToJson(oTransaction)
+	if err != nil{
+		return nil,errors.New("Error: Cannot get transaction bytes")
+	}
+	 keys := []string{args[0]}
+	 err = UpdateLedger(stub,"TransactionTable",keys,transactionBytes)
+	 if err != nil{
+	 	return nil,errors.New("Error: An error has ocured while saving the transaction")
+	 }
+	 return []byte("Transation has been successfully saved"),nil
+}
 
+func GetTransaction(stub *shim.ChaincodeStub,function string, args []string)([]byte,error) {
+	var err error
+	Avalbytes,err := QueryLedger(stub,"TransactionTable",args)
+	if err != nil{
+		return nil,errors.New("{\"Error\":\"Cannot retrieve transaction information\"}")
+	}
+	if Avalbytes == nil{
+		return nil,errors.New("{\"Error\":\"Transaction information is incomplete\"}")
+	}
+	return Avalbytes,nil
+}
+
+func JsonToTransaction(transactionBytes []byte)(TransactionObject,error){	
+	oTransaction := TransactionObject{}
+	err := json.Unmarshal(transactionBytes,&oTransaction)
+	if err != nil{
+		return oTransaction,errors.New("Error: Error creating transaction object")
+	}
+	return oTransaction,nil
+}
+
+
+func TransactionToJson(oTransaction TransactionObject) ([]byte,error){
+	transactionBytes,err := json.Marshal(oTransaction)
+	if err != nil{
+		return nil,errors.New("Error: Cannot get transaction bytes")
+	}
+	return transactionBytes,nil
+}
