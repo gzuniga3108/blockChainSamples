@@ -12,7 +12,7 @@ import (
 
 ///////////////////////////// GLOBAL VARIABLES ///////////////////////////////////
 var globalKey = "2016"
-var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable","ItemDetailTable","TransactionDetailTable"} 
+var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable"} 
 var recType = []string{"USER","ITEM","TRANS"}
 
 
@@ -353,8 +353,6 @@ func CreateUser(stub *shim.ChaincodeStub, function string, args []string) ([]byt
 	}
 	return []byte("User created successfully"),nil
 }
-
-
 func GetUser(stub *shim.ChaincodeStub, function string, args []string) ([]byte, error) {
 	var err error	
 	Avalbytes, err := QueryLedger(stub, "UserTable", args)
