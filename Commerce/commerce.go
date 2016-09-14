@@ -277,7 +277,7 @@ func ProcessQueryResult(stub *shim.ChaincodeStub, Avalbytes []byte, args []strin
 		}
 		fmt.Println("ProcessRequestType() : ", oItem)
 		return err
-	case "TRANSACTION":
+	case "TRANS":
 		oTransaction,err := JsonToTransaction(Avalbytes)
 		if err != nil{
 			return err
