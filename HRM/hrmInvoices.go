@@ -153,9 +153,7 @@ func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, functio
 
 func QueryFunction(fname string) func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	QueryFunc := map[string]func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error){
-		//Eg
-		//"GetItem":               GetItem,
-		//"GetUser":               GetUser,
+		"GetInvoice":GetInvoice,
 	}
 	return QueryFunc[fname]
 }
