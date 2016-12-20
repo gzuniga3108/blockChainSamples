@@ -243,13 +243,14 @@ func ProcessQueryResult(stub shim.ChaincodeStubInterface, Avalbytes []byte, args
 			fmt.Println("ProcessRequestType(): Cannot create invoiceObject \n")
 			return err
 		}
+		fmt.Println("ProcessRequestType() : ", ar)
 		// Decrypt Image and Save Image in a file
-		xml := Decrypt(ar.AES_Key, []byte(ar.Xml))
+		/*xml := Decrypt(ar.AES_Key, []byte(ar.Xml))
 		if err != nil {
 			fmt.Println("XML decrytion failed ")
 			return err
 		}
-		ar.Xml = string(xml)		
+		ar.Xml = string(xml)		*/
 		return err
 	}
 	return nil
@@ -302,9 +303,9 @@ func CreateInvoiceObject(args []string) (InvoiceObject, error) {
 		return invoice, errors.New("{\"status\":\"error\",\"message\":\"Inovoice ID must be an integer\"}")
 	}
 	AES_key, _ := GenAESKey()
-	AES_enc := Encrypt(AES_key, []byte(args[4]))
+	//AES_enc := Encrypt(AES_key, []byte(args[4]))
 	//0->InvoiceId,1->Amount,2->Issuer,3->Receptor,4->XML,5->Status,6->Rectype,
-	invoice = InvoiceObject{args[0], args[1], args[2], args[3],string(AES_enc),"",AES_key,"",args[5],args[6],globalkey}
+	invoice = InvoiceObject{args[0], args[1], args[2], args[3],args[4],"",AES_key,"",args[5],args[6],globalkey}
 	fmt.Println("CreateInvoiceObject(): Invoice Object created: ID# ", invoice.InvoiceID, "\n AES Key: ", invoice.AES_Key)
 	return invoice, nil
 }
