@@ -196,6 +196,34 @@ func UpdateLedger(stub shim.ChaincodeStubInterface, tableName string, keys []str
 	return nil
 }
 
+func QueryLedger(stub shim.ChaincodeStubInterface, tableName string, args []string) ([]byte, error) {
+	var columns []shim.Column
+	nCol := GetNumberOfKeys(tableName)
+	for i := 0; i < nCol; i++ {
+		colNext := shim.Column{Value: &shim.Column_String_{String_: args[i]}}
+		columns = append(columns, colNext)
+	}
+	row, err := stub.GetRow(tableName, columns)
+	fmt.Println("Length or number of rows retrieved ", len(row.Columns))
+	if len(row.Columns) == 0 {
+		jsonResp := "{\"Error\":\"Failed retrieving data " + args[0] + ". \"}"
+		fmt.Println("Error retrieving data record for Key = ", args[0], "Error : ", jsonResp)
+		return nil, errors.New(jsonResp)
+	}
+	//fmt.Println("User Query Response:", row)
+	//fmt.Println("User Query Response:%s\n", jsonResp)
+	Avalbytes := row.Columns[nCol].GetBytes()
+	// Perform Any additional processing of data
+	fmt.Println("QueryLedger() : Successful - Proceeding to ProcessRequestType ")
+	err = ProcessQueryResult(stub, Avalbytes, args)
+	if err != nil {
+		fmt.Println("QueryLedger() : Cannot create object  : ", args[1])
+		jsonResp := "{\"status\":\"error\",\"message\":\"Cannot create object for id: "+args[0]+"\"}"
+		return nil, errors.New(jsonResp)
+	}
+	return Avalbytes, nil
+}
+
 func GetNumberOfKeys(tname string) int {
 	TableMap := map[string]int{
 		"InvoiceTable": 1,
@@ -203,10 +231,37 @@ func GetNumberOfKeys(tname string) int {
 	return TableMap[tname]
 }
 
+func ProcessQueryResult(stub shim.ChaincodeStubInterface, Avalbytes []byte, args []string) error {
+	var dat map[string]interface{}
+	if err := json.Unmarshal(Avalbytes, &dat); err != nil {
+		panic(err)
+	}
+	var recType string
+	recType = dat["RecType"].(string)
+	switch recType {
+	case "INVOICE":
+		ar, err := JSONtoAR(Avalbytes) //
+		if err != nil {
+			fmt.Println("ProcessRequestType(): Cannot create invoiceObject \n")
+			return err
+		}
+		// Decrypt Image and Save Image in a file
+		xml := Decrypt(ar.AES_Key, []byte(ar.Xml))
+		if err != nil {
+			fmt.Println("XML decrytion failed ")
+			return err
+		}
+		ar.Xml = string(xml)		
+		return err
+	}
+	return nil
+}
 /////////////////////////// END OF GENERAL FUNCTIONS ////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////// CUSTOM FUNCTIONS /////////////////////////////////////////////////////////////////
+
+//FUNTIONS TO WRITE THE LEDGER
 func PostInvoice(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	invoiceObject, err := CreateInvoiceObject(args[0:])
 	if err != nil {
@@ -238,9 +293,9 @@ func CreateInvoiceObject(args []string) (InvoiceObject, error) {
 	var err error
 	var invoice InvoiceObject
 	// Check there are 7 arguments
-	if len(args) != 6 {
+	if len(args) != 7 {
 		fmt.Println("CreateInvoiceItem(): Incorrect number of arguments. Expecting 6")
-		return invoice, errors.New("{\"status\":\"error\",\"message\":\"Incorrect number of arguments. Expecting 6\"}")
+		return invoice, errors.New("{\"status\":\"error\",\"message\":\"Incorrect number of arguments. Expecting 7\"}")
 	}
 	// Validate Invoice ID is an integer
 	_, err = strconv.Atoi(args[0])
@@ -249,10 +304,36 @@ func CreateInvoiceObject(args []string) (InvoiceObject, error) {
 		return invoice, errors.New("{\"status\":\"error\",\"message\":\"Inovoice ID must be an integer\"}")
 	}
 	AES_key, _ := GenAESKey()
-	//AES_enc := Encrypt(AES_key, []byte(args[4]))
-	invoice = InvoiceObject{args[0], args[1], args[2], args[3], args[4],"",AES_key,"",args[4],args[5],globalkey}
+	AES_enc := Encrypt(AES_key, []byte(args[4]))
+	//0->InvoiceId,1->Amount,2->Issuer,3->Receptor,4->XML,5->Status,6->Rectype,
+	invoice = InvoiceObject{args[0], args[1], args[2], args[3],string(AES_enc),"",AES_key,"",args[5],args[6],globalkey}
 	fmt.Println("CreateInvoiceObject(): Invoice Object created: ID# ", invoice.InvoiceID, "\n AES Key: ", invoice.AES_Key)
 	return invoice, nil
+}
+
+//FUNCTIONS TO READ THE LEDGER
+func GetInvoice(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
+	var err error
+	// Get the Objects and Display it
+	Avalbytes, err := QueryLedger(stub, "ItemTable", args)
+	if err != nil {
+		fmt.Println("GetInvoice() : Failed to Query Object ")
+		jsonResp := "{\"status\":\"error\",\"message\":\"Cannot get invoice with id "+args[0]+"\"}";
+		return nil, errors.New(jsonResp)
+	}
+
+	if Avalbytes == nil {
+		fmt.Println("GetItem() : Incomplete Query Object ")
+		jsonResp := "{\"status\":\"error\",\"message\":\"Incomplete information for invoice with id "+args[0]+"\"}";
+		return nil, errors.New(jsonResp)
+	}
+
+	fmt.Println("GetInvoice() : Response : Successfull ")
+	// Masking ItemImage binary data
+	invoiceObject, _ := JSONtoAR(Avalbytes)
+	invoiceObject.Xml = ""
+	Avalbytes, _ = ARtoJSON(invoiceObject)
+	return Avalbytes, nil
 }
 
 
@@ -291,8 +372,28 @@ func Encrypt(key []byte, ba []byte) []byte {
 	stream.XORKeyStream(ciphertext[aes.BlockSize:], ba)
 	return ciphertext
 }
+func Decrypt(key []byte, ciphertext []byte) []byte {
+	// Create the AES cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err)
+	}
+	if len(ciphertext) < aes.BlockSize {
+		panic("Text is too short")
+	}
+	// Get the 16 byte IV
+	iv := ciphertext[:aes.BlockSize]
+	// Remove the IV from the ciphertext
+	ciphertext = ciphertext[aes.BlockSize:]
+	// Return a decrypted stream
+	stream := cipher.NewCFBDecrypter(block, iv)
+	// Decrypt bytes from ciphertext
+	stream.XORKeyStream(ciphertext, ciphertext)
+	return ciphertext
+}
 
 /////////////////// DATA PASRSING FUNCTIONS ///////////////////////////////////////////////////////////////
+//For Invoices
 func ARtoJSON(ar InvoiceObject) ([]byte, error) {
 	ajson, err := json.Marshal(ar)
 	if err != nil {
@@ -300,4 +401,12 @@ func ARtoJSON(ar InvoiceObject) ([]byte, error) {
 		return nil, err
 	}
 	return ajson, nil
+}
+func JSONtoAR(data []byte) (InvoiceObject, error) {
+	ar := InvoiceObject{}
+	err := json.Unmarshal([]byte(data), &ar)
+	if err != nil {
+		fmt.Println("Unmarshal failed : ", err)
+	}
+	return ar, err
 }
