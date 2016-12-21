@@ -44,7 +44,7 @@ var appTables = []Table{Table{"InvoiceTable",1}}
 //Record types to store in tables
 var recType = []string{"INVOICE"}
 //Global key to get all records
-var globalkey = "HRM";
+var globalKey = "HRM";
 
 const (
 	AESKeyLength = 32 // AESKeyLength is the default AES key length
@@ -305,7 +305,7 @@ func CreateInvoiceObject(args []string) (InvoiceObject, error) {
 	AES_key, _ := GenAESKey()
 	//AES_enc := Encrypt(AES_key, []byte(args[4]))
 	//0->InvoiceId,1->Amount,2->Issuer,3->Receptor,4->XML,5->Status,6->Rectype,
-	invoice = InvoiceObject{args[0], args[1], args[2], args[3],args[4],"",AES_key,"",args[5],args[6],globalkey}
+	invoice = InvoiceObject{args[0], args[1], args[2], args[3],args[4],"",AES_key,"",args[5],args[6],globalKey}
 	fmt.Println("CreateInvoiceObject(): Invoice Object created: ID# ", invoice.InvoiceID, "\n AES Key: ", invoice.AES_Key)
 	return invoice, nil
 }
