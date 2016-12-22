@@ -11,9 +11,9 @@ import (
 )
 
 ///////////////////////////// GLOBAL VARIABLES ///////////////////////////////////
-var globalKey = "2016"
-var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable","ItemCatTable","ItemOwnerTable","TransPrevOwnerTable","TransNewOwnerTable"} 
-var recType = []string{"USER","ITEM","TRANS"}
+var globalKey = "HRM"
+var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable","ItemCatTable","ItemOwnerTable","TransPrevOwnerTable","TransNewOwnerTable","InvoiceTable"} 
+var recType = []string{"USER","ITEM","TRANS","INVOICE"}
 
 
 ///////////////////////////// OBJECTS STRUCTURES /////////////////////////////////
@@ -50,6 +50,18 @@ type TransactionObject struct{
 	TransType		string
 	RecType 		string //TRANS
 }
+
+type InvoiceObject struct {
+	InvoiceID 	string //PRIMARYKEY 	
+	Issuer    	string //KEY
+	Receptor  	string //KEY
+	Amount	  	string
+	Xml		  	string
+	PaymentDay  string
+	Status      string
+	RecType   	string //INVOICE		
+}
+
 
 //////////////////////// BASIC FUNCTIONS ////////////////////////////////////////
 func main() {
@@ -144,6 +156,7 @@ func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, functio
 		"UpdateUser":		UpdateUser,
 		"UpdateItem":		UpdateItem,
 		"NewTransaction": 	NewTransaction,
+		"CreateInvoice":	CreateInvoice,
 
 	}
 	return InvokeFunc[fname]
@@ -159,6 +172,7 @@ func QueryFunction(fname string) func(stub shim.ChaincodeStubInterface, function
 		"GetItemListByOwner":		GetItemListByOwner,
 		"GetTransListPrevOwner":	GetTransListPrevOwner,
 		"GetTransListNewOwner":		GetTransListNewOwner,
+		"GetInvoice":				GetInvoice,
 	}
 	return QueryFunc[fname]
 }
@@ -229,6 +243,8 @@ func GetNumberOfKeys(tname string) int {
 			return 4
 		case "TransNewOwnerTable":
 			return 4			
+		case "InvoiceObject":
+			return 4
 	}
 	return 0
 }
@@ -297,6 +313,13 @@ func ProcessQueryResult(stub shim.ChaincodeStubInterface, Avalbytes []byte, args
 			return err
 		}
 		fmt.Println("ProcessRequestType() : ", oTransaction)
+		return err
+	case "INVOICE":
+		oInvoice,err := JsonToInvoice(Avalbytes)
+		if err != nil{
+			return err
+		}
+		fmt.Println("ProcessRequestType() : ", oInvoice)
 		return err
 	default:
 		return errors.New("Unknown")
@@ -452,6 +475,54 @@ func UsertoJSON(user UserObject) ([]byte, error) {
 }
 
 
+
+//////////////////////////////////////////// INVOICE'S FUNCTIONS /////////////////////////////////////////////////////
+func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
+	var oInvoice InvoiceObject
+	if len(args) < 7{
+		return nil,errors.New("Error: Expecting 7 parameters")
+	}
+	oInvoice = InvoiceObject{args[0],args[1],args[2],args[3],args[4],"",args[5],args[6]}
+	invoiceBytes,err := InvoiceToJson(oInvoice) 
+	if err != nil{
+		return nil,err
+	}
+	keys := []string{globalKey,args[0],args[1],args[2]}
+	err = UpdateLedger(stub,"InvoiceTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,errors.New("Error: Cannot save invoice")
+	}	
+	return []byte("Invoice created successfully"),nil
+}
+
+func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
+	var err error
+	Avalbytes,err := QueryLedger(stub,"InvoiceTable",args)
+	if err != nil{
+		return nil,errors.New("{\"Error\":\"Cannot retrieve invoice information\"}")
+	}
+	if Avalbytes == nil{
+		return nil,errors.New("{\"Error\":\"Invoice information is incomplete\"}")
+	}
+	return Avalbytes,nil
+}
+
+func JsonToInvoice(invoiceBytes []byte)(InvoiceObject,error){
+	oInvoice := InvoiceObject{}
+	err := json.Unmarshal(invoiceBytes,&oInvoice)
+	if err != nil{
+		return oInvoice,errors.New("Error: Cannot create item object")
+	}
+	return oInvoice,nil
+}
+
+func InvoiceToJson(oInvoice InvoiceObject)([]byte,error){
+	invoiceBytes,err := json.Marshal(oInvoice)
+	if err != nil{
+		return nil,errors.New("Error:Cannot get invoice  bytes")
+	}
+	return invoiceBytes,nil
+}
 
 
 //////////////////////////////////////////// ITEM'S FUNCTION /////////////////////////////////////////////////////////
