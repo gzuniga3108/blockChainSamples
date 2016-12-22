@@ -121,7 +121,7 @@ func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, functio
 
 func QueryFunction(fname string) func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	QueryFunc := map[string]func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error){			
-		//"GetInvoice":				GetInvoice,
+		"GetAllInvoices":				GetAllInvoices,
 	}
 	return QueryFunc[fname]
 }
@@ -148,6 +148,41 @@ func UpdateLedger(stub shim.ChaincodeStubInterface, tableName string, keys []str
 	}
 	fmt.Println("UpdateLedger: InsertRow into ", tableName, " Table operation Successful. ")
 	return nil
+}
+
+func GetList(stub shim.ChaincodeStubInterface, tableName string, args []string) ([]shim.Row, error) {
+	var columns []shim.Column
+	nKeys := GetNumberOfKeys(tableName)
+	nCol := len(args)
+	if nCol < 1 {
+		fmt.Println("Atleast 1 Key must be provided \n")
+		return nil, errors.New("GetList failed. Must include at least key values")
+	}
+	for i := 0; i < nCol; i++ {
+		colNext := shim.Column{Value: &shim.Column_String_{String_: args[i]}}
+		columns = append(columns, colNext)
+	}
+	rowChannel, err := stub.GetRows(tableName, columns)
+	if err != nil {
+		return nil, fmt.Errorf("GetList operation failed. %s", err)
+	}
+	var rows []shim.Row
+	for {
+		select {
+		case row, ok := <-rowChannel:
+			if !ok {
+				rowChannel = nil
+			} else {
+				rows = append(rows, row)				
+			}
+		}
+		if rowChannel == nil {
+			break
+		}
+	}
+	fmt.Println("Number of Keys retrieved : ", nKeys)
+	fmt.Println("Number of rows retrieved : ", len(rows))
+	return rows, nil
 }
 
 
@@ -188,10 +223,42 @@ func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 	return []byte("Item created successfully"),nil
 }
 
+func GetAllInvoices(stub shim.ChaincodeStubInterface,function string,args []string)([]byte,error){
+	if len(args) < 1 {
+		args[0] = globalInvoiceKey;
+	}
+	rows, err := GetList(stub, "InvoiceTable", args)
+	if err != nil {
+		return nil, fmt.Errorf("GetAllInvoices() operation failed. Error marshaling JSON: %s", err)
+	}
+	nCol := GetNumberOfKeys("ItemOwnerTable")
+	tlist := make([]InvoiceObject, len(rows))
+	for i := 0; i < len(rows); i++ {
+		ts := rows[i].Columns[nCol].GetBytes()
+		uo, err := JsonToInvoice(ts)
+		if err != nil {
+			fmt.Println("GetAllInvoices() Failed : Ummarshall error")
+			return nil, fmt.Errorf("GetAllInvoices() operation failed. %s", err)
+		}
+		tlist[i] = uo
+	}
+	jsonRows, _ := json.Marshal(tlist)	
+	return jsonRows, nil
+}
+
 func InvoiceToJson(oInvoice InvoiceObject)([]byte,error){
 	invoiceBytes,err := json.Marshal(oInvoice)
 	if err != nil{
 		return nil,errors.New("Error:Cannot get invoice  bytes")
 	}
 	return invoiceBytes,nil
+}
+
+func JsonToInvoice(invoiceBytes []byte)(InvoiceObject,error){
+	oInvoice := InvoiceObject{}
+	err := json.Unmarshal(invoiceBytes,&oInvoice)
+	if err != nil{
+		return oInvoice,errors.New("Error: Cannot create invoice object")
+	}
+	return oInvoice,nil
 }
