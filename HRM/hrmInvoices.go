@@ -170,6 +170,7 @@ func QueryFunction(fname string) func(stub shim.ChaincodeStubInterface, function
 		"GetItemListByOwner":		GetItemListByOwner,
 		"GetTransListPrevOwner":	GetTransListPrevOwner,
 		"GetTransListNewOwner":		GetTransListNewOwner,
+		"GetInvoice":				GetInvoice,
 	}
 	return QueryFunc[fname]
 }
@@ -311,6 +312,13 @@ func ProcessQueryResult(stub shim.ChaincodeStubInterface, Avalbytes []byte, args
 		}
 		fmt.Println("ProcessRequestType() : ", oTransaction)
 		return err
+	case "INVOICE":
+		oInvoice,err := JsonToInvoice(Avalbytes)
+		if err != nil{
+			return err
+		}
+		fmt.Println("ProcessRequestType() : ", oInvoice)
+		return err	
 	default:
 		return errors.New("Unknown")
 	}
@@ -483,6 +491,17 @@ func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 	return []byte("Item created successfully"),nil
 }
 
+func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
+	var err error
+	Avalbytes,err := QueryLedger(stub,"InvoiceTable",args)
+	if err != nil{
+		return nil,errors.New("{\"Error\":\"Cannot retrieve invoice information\"}")
+	}
+	if Avalbytes == nil{
+		return nil,errors.New("{\"Error\":\"Invoice information is incomplete\"}")
+	}
+	return Avalbytes,nil
+}
 
 func InvoiceToJson(oInvoice InvoiceObject)([]byte,error){
 	invoiceBytes,err := json.Marshal(oInvoice)
@@ -492,6 +511,14 @@ func InvoiceToJson(oInvoice InvoiceObject)([]byte,error){
 	return invoiceBytes,nil
 }
 
+func JsonToInvoice(invoiceBytes []byte)(InvoiceObject,error){
+	oInvoice := InvoiceObject{}
+	err := json.Unmarshal(invoiceBytes,&oInvoice)
+	if err != nil{
+		return oInvoice,errors.New("Error: Cannot create item object")
+	}
+	return oInvoice,nil
+}
 //////////////////////////////////////////// ITEM'S FUNCTION /////////////////////////////////////////////////////////
 func CreateItem(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
 	var oItem ItemObject
