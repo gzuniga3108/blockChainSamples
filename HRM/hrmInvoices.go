@@ -185,7 +185,6 @@ func GetList(stub shim.ChaincodeStubInterface, tableName string, args []string) 
 	return rows, nil
 }
 
-
 func GetNumberOfKeys(tname string) int {
 	switch tname{		
 		case "InvoiceTable":
@@ -224,18 +223,22 @@ func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 }
 
 func GetAllInvoices(stub shim.ChaincodeStubInterface,function string,args []string)([]byte,error){
+	if len(args) >= 1{
+		args[1] = args[0]
+		args[0] = globalInvoiceKey
+	}
 	if len(args) < 1 {
-		args[0] = globalInvoiceKey;
+		args[0] = globalInvoiceKey
 	}
 	rows, err := GetList(stub, "InvoiceTable", args)
 	if err != nil {
 		return nil, fmt.Errorf("GetAllInvoices() operation failed. Error marshaling JSON: %s", err)
 	}
-	nCol := GetNumberOfKeys("ItemOwnerTable")
+	nCol := GetNumberOfKeys("InvoiceTable")
 	tlist := make([]InvoiceObject, len(rows))
 	for i := 0; i < len(rows); i++ {
 		ts := rows[i].Columns[nCol].GetBytes()
-		uo, err := JsonToInvoice(ts)
+		uo, err := JsontoInvoice(ts)
 		if err != nil {
 			fmt.Println("GetAllInvoices() Failed : Ummarshall error")
 			return nil, fmt.Errorf("GetAllInvoices() operation failed. %s", err)
@@ -254,7 +257,7 @@ func InvoiceToJson(oInvoice InvoiceObject)([]byte,error){
 	return invoiceBytes,nil
 }
 
-func JsonToInvoice(invoiceBytes []byte)(InvoiceObject,error){
+func JsontoInvoice(invoiceBytes []byte)(InvoiceObject,error){
 	oInvoice := InvoiceObject{}
 	err := json.Unmarshal(invoiceBytes,&oInvoice)
 	if err != nil{
