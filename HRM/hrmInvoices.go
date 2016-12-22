@@ -12,8 +12,8 @@ import (
 
 ///////////////////////////// GLOBAL VARIABLES ///////////////////////////////////
 var globalKey = "2016"
-var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable","ItemCatTable","ItemOwnerTable","TransPrevOwnerTable","TransNewOwnerTable"} 
-var recType = []string{"USER","ITEM","TRANS"}
+var appTables = []string{"UserTable","ItemTable","TransactionTable","UserDetailTable","ItemCatTable","ItemOwnerTable","TransPrevOwnerTable","TransNewOwnerTable","InvoiceTable"} 
+var recType = []string{"USER","ITEM","TRANS","INVOICE"}
 
 
 ///////////////////////////// OBJECTS STRUCTURES /////////////////////////////////
@@ -51,6 +51,16 @@ type TransactionObject struct{
 	RecType 		string //TRANS
 }
 
+type InvoiceObject struct {
+	InvoiceID 	string //PRIMARYKEY	
+	Issuer    	string //KEY
+	Receptor  	string //KEY
+	Amount	  	string
+	Xml		  	string
+	PaymentDay  string
+	Status      string
+	RecType   	string //INVOICE	
+}
 //////////////////////// BASIC FUNCTIONS ////////////////////////////////////////
 func main() {
 	err := shim.Start(new(SimpleChaincode))
@@ -144,6 +154,7 @@ func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, functio
 		"UpdateUser":		UpdateUser,
 		"UpdateItem":		UpdateItem,
 		"NewTransaction": 	NewTransaction,
+		"CreateInvoice":	CreateInvoice,
 
 	}
 	return InvokeFunc[fname]
@@ -229,6 +240,8 @@ func GetNumberOfKeys(tname string) int {
 			return 4
 		case "TransNewOwnerTable":
 			return 4			
+		case "InvoiceTable":
+			return 4			
 	}
 	return 0
 }
@@ -303,7 +316,6 @@ func ProcessQueryResult(stub shim.ChaincodeStubInterface, Avalbytes []byte, args
 	}
 	return nil
 }
-
 
 func GetList(stub shim.ChaincodeStubInterface, tableName string, args []string) ([]shim.Row, error) {
 	var columns []shim.Column
@@ -452,7 +464,33 @@ func UsertoJSON(user UserObject) ([]byte, error) {
 }
 
 
+///////////////////////////////////////////// INVOICE'S FUNCTIONS ////////////////////////////////////////////////////
+func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
+	var oInvoice InvoiceObject
+	if len(args) < 7{
+		return nil,errors.New("Error: Expecting 7 parameters")
+	}
+	oInvoice = InvoiceObject{args[0],args[1],args[2],args[3],args[4],"--",args[5],args[6]}
+	invoiceBytes,err := InvoiceToJson(oInvoice) 
+	if err != nil{
+		return nil,err
+	}
+	keys := []string{globalKey,args[0],args[1],args[2]}
+	err = UpdateLedger(stub,"InvoiceTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,errors.New("Error: Cannot save invoice")
+	}
+	return []byte("Item created successfully"),nil
+}
 
+
+func InvoiceToJson(oInvoice InvoiceObject)([]byte,error){
+	invoiceBytes,err := json.Marshal(oInvoice)
+	if err != nil{
+		return nil,errors.New("Error:Cannot get invoice  bytes")
+	}
+	return invoiceBytes,nil
+}
 
 //////////////////////////////////////////// ITEM'S FUNCTION /////////////////////////////////////////////////////////
 func CreateItem(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
