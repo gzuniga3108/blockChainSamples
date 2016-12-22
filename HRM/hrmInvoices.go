@@ -9,7 +9,8 @@ import (
 
 ///////////////////////////// GLOBAL VARIABLES ///////////////////////////////////
 var globalInvoiceKey = "HRMINV"
-var appTables = []string{"InvoiceTable"} 
+var globalKey        = "HRM"
+var appTables = []string{"InvoiceTable","InvoiceReceptorTable","InvoiceIssuerTable"} 
 var recType = []string{"INVOICE"}
 
 ///////////////////////////// OBJECTS STRUCTURES /////////////////////////////////
@@ -154,6 +155,10 @@ func GetNumberOfKeys(tname string) int {
 	switch tname{		
 		case "InvoiceTable":
 			return 1	//InvoiceId
+		case "InvoiceReceptorTable":
+			return 2
+		case "InvoiceIssuerTable":
+			return 2
 	}
 	return 0
 }
@@ -214,6 +219,41 @@ func ProcessQueryResult(stub shim.ChaincodeStubInterface, Avalbytes []byte, args
 	return nil
 }
 
+func GetList(stub shim.ChaincodeStubInterface, tableName string, args []string) ([]shim.Row, error) {
+	var columns []shim.Column
+	nKeys := GetNumberOfKeys(tableName)
+	nCol := len(args)
+	if nCol < 1 {
+		fmt.Println("Atleast 1 Key must be provided \n")
+		return nil, errors.New("GetList failed. Must include at least key values")
+	}
+	for i := 0; i < nCol; i++ {
+		colNext := shim.Column{Value: &shim.Column_String_{String_: args[i]}}
+		columns = append(columns, colNext)
+	}
+	rowChannel, err := stub.GetRows(tableName, columns)
+	if err != nil {
+		return nil, fmt.Errorf("GetList operation failed. %s", err)
+	}
+	var rows []shim.Row
+	for {
+		select {
+		case row, ok := <-rowChannel:
+			if !ok {
+				rowChannel = nil
+			} else {
+				rows = append(rows, row)				
+			}
+		}
+		if rowChannel == nil {
+			break
+		}
+	}
+	fmt.Println("Number of Keys retrieved : ", nKeys)
+	fmt.Println("Number of rows retrieved : ", len(rows))
+	return rows, nil
+}
+
 ///////////////////////////////////////////// INVOICE'S FUNCTIONS ////////////////////////////////////////////////////
 func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
 	var oInvoice InvoiceObject
@@ -230,7 +270,17 @@ func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 	if err != nil{
 		return nil,errors.New("Error: Cannot save invoice")
 	}
-	return []byte("Item created successfully"),nil
+	keys = []string{globalKey,args[2]}
+	err = UpdateLedger(stub,"InvoiceIssuerTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	keys = []string{globalKey,args[3]}
+	err = UpdateLedger(stub,"InvoiceReceptorTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	return []byte("Invoice created successfully"),nil
 }
 
 func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
@@ -240,9 +290,57 @@ func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)
 		return nil,errors.New("{\"Error\":\"Cannot retrieve invoice information\"}")
 	}
 	if Avalbytes == nil{
-		return nil,errors.New("{\"Error\":\"Item information invoice incomplete\"}")
+		return nil,errors.New("{\"Error\":\"Invoice information invoice incomplete\"}")
 	}
 	return Avalbytes,nil
+}
+
+func GetInvoicesByIssuer(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
+	if len(args) < 1 {
+		fmt.Println("GetInvoicesByIssuer(): Incorrect number of arguments. Expecting at least 1 ")		
+		return nil, errors.New("GetInvoicesByIssuer(): Incorrect number of arguments. Expecting at least 1 ")
+	}
+	rows, err := GetList(stub, "InvoiceIssuerTable", args)
+	if err != nil {
+		return nil, fmt.Errorf("GetInvoicesByIssuer() operation failed. Error marshaling JSON: %s", err)
+	}
+	nCol := GetNumberOfKeys("InvoiceIssuerTable")
+	tlist := make([]InvoiceObject, len(rows))
+	for i := 0; i < len(rows); i++ {
+		ts := rows[i].Columns[nCol].GetBytes()
+		uo, err := JsonToInvoice(ts)
+		if err != nil {
+			fmt.Println("GetInvoicesByIssuer() Failed : Ummarshall error")
+			return nil, fmt.Errorf("GetInvoicesByIssuer() operation failed. %s", err)
+		}
+		tlist[i] = uo
+	}
+	jsonRows, _ := json.Marshal(tlist)	
+	return jsonRows, nil
+}
+
+func GetInvoicesByReceptor(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
+	if len(args) < 1 {
+		fmt.Println("GetInvoicesByReceptor(): Incorrect number of arguments. Expecting at least 1 ")		
+		return nil, errors.New("GetInvoicesByReceptor(): Incorrect number of arguments. Expecting at least 1 ")
+	}
+	rows, err := GetList(stub, "InvoiceReceptorTable", args)
+	if err != nil {
+		return nil, fmt.Errorf("GetInvoicesByReceptor() operation failed. Error marshaling JSON: %s", err)
+	}
+	nCol := GetNumberOfKeys("InvoiceReceptorTable")
+	tlist := make([]InvoiceObject, len(rows))
+	for i := 0; i < len(rows); i++ {
+		ts := rows[i].Columns[nCol].GetBytes()
+		uo, err := JsonToInvoice(ts)
+		if err != nil {
+			fmt.Println("GetInvoicesByReceptor() Failed : Ummarshall error")
+			return nil, fmt.Errorf("GetInvoicesByReceptor() operation failed. %s", err)
+		}
+		tlist[i] = uo
+	}
+	jsonRows, _ := json.Marshal(tlist)	
+	return jsonRows, nil
 }
 
 
