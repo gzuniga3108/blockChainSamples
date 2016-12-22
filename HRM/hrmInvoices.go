@@ -123,7 +123,10 @@ func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, functio
 func QueryFunction(fname string) func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	QueryFunc := map[string]func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error){			
 		"GetInvoice":				GetInvoice,
+		"GetInvoicesByIssuer":		GetInvoicesByIssuer,
+		"GetInvoicesByReceptor":    GetInvoicesByReceptor,
 	}
+
 	return QueryFunc[fname]
 }
 
@@ -156,9 +159,9 @@ func GetNumberOfKeys(tname string) int {
 		case "InvoiceTable":
 			return 1	//InvoiceId
 		case "InvoiceReceptorTable":
-			return 2
+			return 3
 		case "InvoiceIssuerTable":
-			return 2
+			return 3
 	}
 	return 0
 }
@@ -270,12 +273,12 @@ func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 	if err != nil{
 		return nil,errors.New("Error: Cannot save invoice")
 	}
-	keys = []string{globalKey,args[2]}
+	keys = []string{globalKey,args[2],args[0]}
 	err = UpdateLedger(stub,"InvoiceIssuerTable",keys,invoiceBytes)
 	if err != nil{
 		return nil,err
 	}
-	keys = []string{globalKey,args[3]}
+	keys = []string{globalKey,args[3],args[0]}
 	err = UpdateLedger(stub,"InvoiceReceptorTable",keys,invoiceBytes)
 	if err != nil{
 		return nil,err
