@@ -124,7 +124,7 @@ func QueryFunction(fname string) func(stub shim.ChaincodeStubInterface, function
 	QueryFunc := map[string]func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error){			
 		"GetInvoice":				GetInvoice,
 		"GetInvoicesByIssuer":		GetInvoicesByIssuer,
-		/*"GetInvoicesByReceptor":    GetInvoicesByReceptor,*/
+		"GetInvoicesByReceptor":    GetInvoicesByReceptor,
 	}
 
 	return QueryFunc[fname]
@@ -157,7 +157,7 @@ func UpdateLedger(stub shim.ChaincodeStubInterface, tableName string, keys []str
 func GetNumberOfKeys(tname string) int {
 	switch tname{		
 		case "InvoiceTable":
-			return 1	//InvoiceId
+			return 2	//InvoiceId
 		case "InvoiceReceptorTable":
 			return 3
 		case "InvoiceIssuerTable":
@@ -268,25 +268,25 @@ func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 	if err != nil{
 		return nil,err
 	}
-	keys := []string{args[0]}
+	keys := []string{globalInvoiceKey,args[0]}
 	err = UpdateLedger(stub,"InvoiceTable",keys,invoiceBytes)
 	if err != nil{
 		return nil,errors.New("Error: Cannot save invoice")
 	}
-	keys = []string{globalKey,args[2],args[0]}
+	keys = []string{globalKey,args[1],args[0]}
 	err = UpdateLedger(stub,"InvoiceIssuerTable",keys,invoiceBytes)
 	if err != nil{
 		return nil,err
 	}
-	/*keys = []string{globalKey,args[3],args[0]}
+	keys = []string{globalKey,args[2],args[0]}
 	err = UpdateLedger(stub,"InvoiceReceptorTable",keys,invoiceBytes)
 	if err != nil{
 		return nil,err
-	}*/
+	}
 	return []byte("Invoice created successfully"),nil
 }
 
-func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
+/*func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
 	var err error
 	Avalbytes,err := QueryLedger(stub,"InvoiceTable",args)
 	if err != nil{
@@ -296,6 +296,29 @@ func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)
 		return nil,errors.New("{\"Error\":\"Invoice information invoice incomplete\"}")
 	}
 	return Avalbytes,nil
+}*/
+func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
+	if len(args) < 1 {
+		fmt.Println("GetInvoice(): Incorrect number of arguments. Expecting at least 1 ")		
+		return nil, errors.New("GetInvoice(): Incorrect number of arguments. Expecting at least 1 ")
+	}
+	rows, err := GetList(stub, "InvoiceTable", args)
+	if err != nil {
+		return nil, fmt.Errorf("GetInvoice() operation failed. Error marshaling JSON: %s", err)
+	}
+	nCol := GetNumberOfKeys("InvoiceTable")
+	tlist := make([]InvoiceObject, len(rows))
+	for i := 0; i < len(rows); i++ {
+		ts := rows[i].Columns[nCol].GetBytes()
+		uo, err := JsonToInvoice(ts)
+		if err != nil {
+			fmt.Println("GetInvoice() Failed : Ummarshall error")
+			return nil, fmt.Errorf("GetInvoice() operation failed. %s", err)
+		}
+		tlist[i] = uo
+	}
+	jsonRows, _ := json.Marshal(tlist)	
+	return jsonRows, nil
 }
 
 func GetInvoicesByIssuer(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
@@ -321,7 +344,6 @@ func GetInvoicesByIssuer(stub shim.ChaincodeStubInterface,function string, args 
 	jsonRows, _ := json.Marshal(tlist)	
 	return jsonRows, nil
 }
-/*
 func GetInvoicesByReceptor(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
 	if len(args) < 1 {
 		fmt.Println("GetInvoicesByReceptor(): Incorrect number of arguments. Expecting at least 1 ")		
@@ -344,7 +366,7 @@ func GetInvoicesByReceptor(stub shim.ChaincodeStubInterface,function string, arg
 	}
 	jsonRows, _ := json.Marshal(tlist)	
 	return jsonRows, nil
-}*/
+}
 
 
 func InvoiceToJson(oInvoice InvoiceObject)([]byte,error){
