@@ -123,8 +123,8 @@ func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, functio
 func QueryFunction(fname string) func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	QueryFunc := map[string]func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error){			
 		"GetInvoice":				GetInvoice,
-		/*"GetInvoicesByIssuer":		GetInvoicesByIssuer,
-		"GetInvoicesByReceptor":    GetInvoicesByReceptor,*/
+		"GetInvoicesByIssuer":		GetInvoicesByIssuer,
+		/*"GetInvoicesByReceptor":    GetInvoicesByReceptor,*/
 	}
 
 	return QueryFunc[fname]
@@ -297,7 +297,7 @@ func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)
 	}
 	return Avalbytes,nil
 }
-/*
+
 func GetInvoicesByIssuer(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
 	if len(args) < 1 {
 		fmt.Println("GetInvoicesByIssuer(): Incorrect number of arguments. Expecting at least 1 ")		
@@ -321,7 +321,7 @@ func GetInvoicesByIssuer(stub shim.ChaincodeStubInterface,function string, args 
 	jsonRows, _ := json.Marshal(tlist)	
 	return jsonRows, nil
 }
-
+/*
 func GetInvoicesByReceptor(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
 	if len(args) < 1 {
 		fmt.Println("GetInvoicesByReceptor(): Incorrect number of arguments. Expecting at least 1 ")		
