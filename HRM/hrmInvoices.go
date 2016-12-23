@@ -117,8 +117,8 @@ func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, functio
 	InvokeFunc := map[string]func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error){		
 		"CreateInvoice":	CreateInvoice,
 		"UpdateInvoice":    UpdateInvoice,
-		/*"UpdatePaymentDay":  UpdatePaymentDay,
-		"UpdateInvoiceStatus": UpdateInvoiceStatus,*/
+		"UpdatePaymentDay":  UpdatePaymentDay,
+		/*"UpdateInvoiceStatus": UpdateInvoiceStatus,*/
 	}
 	return InvokeFunc[fname]
 }
@@ -409,8 +409,8 @@ func UpdatePaymentDay(stub shim.ChaincodeStubInterface, function string, args []
 	if len(args) < 4{
 		return nil,errors.New("Error: Expecting 4 parameters")
 	}
-	invoiceBytes,err := GetInvoice(stub,function,newArgs)
-	if err !=  nil{
+	invoiceBytes,err := QueryLedger(stub,"InvoiceTable",args)
+	if err != nil{
 		return nil,err
 	}
 	oInvoice,err = JsonToInvoice(invoiceBytes)
