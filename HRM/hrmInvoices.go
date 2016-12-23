@@ -404,8 +404,8 @@ func UpdateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 func UpdatePaymentDay(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
 	var oInvoice InvoiceObject
 	newArgs := []string{args[0]}
-	if len(args) < 3{
-		return nil,errors.New("Error: Expecting 3 parameters")
+	if len(args) < 4{
+		return nil,errors.New("Error: Expecting 4 parameters")
 	}
 	invoiceBytes,err := GetInvoice(stub,function,newArgs)
 	if err !=  nil{
