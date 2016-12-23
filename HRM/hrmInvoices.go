@@ -117,8 +117,8 @@ func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, functio
 	InvokeFunc := map[string]func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error){		
 		"CreateInvoice":	CreateInvoice,
 		"UpdateInvoice":    UpdateInvoice,
-		"UpdatePaymentDay":  UpdatePaymentDay,
-		"UpdateInvoiceStatus": UpdateInvoiceStatus,
+		/*"UpdatePaymentDay":  UpdatePaymentDay,
+		"UpdateInvoiceStatus": UpdateInvoiceStatus,*/
 	}
 	return InvokeFunc[fname]
 }
