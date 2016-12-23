@@ -116,7 +116,7 @@ func InitLedger(stub shim.ChaincodeStubInterface, tableName string) error {
 func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	InvokeFunc := map[string]func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error){		
 		"CreateInvoice":	CreateInvoice,
-		"UpdatePaymentDay": UpdatePaymentDay,
+		"UpdateInvoice":    UpdateInvoice,
 	}
 	return InvokeFunc[fname]
 }
@@ -371,38 +371,30 @@ func GetInvoicesByReceptor(stub shim.ChaincodeStubInterface,function string, arg
 }
 
 
-func UpdatePaymentDay(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
-	if len(args) < 3{
-		return nil,errors.New("Error: Expecting invoice 2 parameters")
+func UpdateInvoice(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
+	var oInvoice InvoiceObject
+	if len(args) < 8{
+		return nil,errors.New("Error: Expecting 8 parameters")
 	}
-	newArgs := []string{args[0]}
-	invoiceBytes,err := GetInvoice(stub,"GetInvoice",newArgs)
+	oInvoice = InvoiceObject{args[0],args[1],args[2],args[3],args[4],args[5],args[6],args[7]}
+	invoiceBytes,err := InvoiceToJson(oInvoice) 
 	if err != nil{
 		return nil,err
-	}
-	oInvoice,err := JsonToInvoice(invoiceBytes)
-	if err != nil{
-		return nil,err
-	}
-	oInvoice.PaymentDay = args[2]
-	oInvoice.Status     = args[3]
-	invoiceBytes,err2 := InvoiceToJson(oInvoice) 
-	if err2 != nil{
-		return nil,err2
 	}
 	keys := []string{args[0]}
 	err = ReplaceLedgerEntry(stub,"InvoiceTable",keys,invoiceBytes)
 	if err != nil{
-		return nil,errors.New("Error: Cannot save item")
+		return nil,errors.New("Error: Cannot save invoice")
 	}
-	//Update InvoiceIssuerTable
-	keys = []string{globalKey,oInvoice.Issuer,oInvoice.InvoiceID}
+	//Insert into InvoiceReceptorTable
+	//GlobalKey,Status,ItemType,ItemId
+	keys = []string{globalKey,args[1],args[0]}
 	err = UpdateLedger(stub,"InvoiceIssuerTable",keys,invoiceBytes)
 	if err != nil{
 		return nil,err
 	}
-	//Update InvoiceReceptorTable
-	keys = []string{globalKey,oInvoice.Receptor,oInvoice.InvoiceID}
+	//Insert into InvoiceReceptorTable
+	keys = []string{globalKey,args[2],args[0]}
 	err = UpdateLedger(stub,"InvoiceReceptorTable",keys,invoiceBytes)
 	if err != nil{
 		return nil,err
