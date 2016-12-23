@@ -387,7 +387,7 @@ func UpdateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 		return nil,errors.New("Error: Cannot save invoice")
 	}
 	//Insert into InvoiceReceptorTable
-	keys = []string{globalKey,args[1],args[0]}
+	keys = []string{globalKey,args[1]}
 	err = UpdateLedger(stub,"InvoiceIssuerTable",keys,invoiceBytes)
 	if err != nil{
 		return nil,err
