@@ -116,6 +116,7 @@ func InitLedger(stub shim.ChaincodeStubInterface, tableName string) error {
 func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
 	InvokeFunc := map[string]func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error){		
 		"CreateInvoice":	CreateInvoice,
+		"UpdatePaymentDay": UpdatePaymentDay,
 	}
 	return InvokeFunc[fname]
 }
