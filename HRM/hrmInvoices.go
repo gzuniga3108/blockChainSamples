@@ -117,6 +117,8 @@ func InvokeFunction(fname string) func(stub shim.ChaincodeStubInterface, functio
 	InvokeFunc := map[string]func(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error){		
 		"CreateInvoice":	CreateInvoice,
 		"UpdateInvoice":    UpdateInvoice,
+		"UpdatePaymentDay":  UpdatePaymentDay,
+		"UpdateInvoiceStatus": UpdateInvoiceStatus,
 	}
 	return InvokeFunc[fname]
 }
@@ -417,6 +419,45 @@ func UpdatePaymentDay(stub shim.ChaincodeStubInterface, function string, args []
 	}
 	oInvoice.PaymentDay = args[1]
 	oInvoice.Status     = args[2]
+	invoiceBytes,err = InvoiceToJson(oInvoice) 
+	if err != nil{
+		return nil,err
+	}
+	keys := []string{args[0]}
+	err = ReplaceLedgerEntry(stub,"InvoiceTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,errors.New("Error: Cannot save invoice")
+	}
+	//Insert into InvoiceIssuerTable
+	keys = []string{globalKey,args[1],args[0]}
+	err = ReplaceLedgerEntry(stub,"InvoiceIssuerTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	//Insert into InvoiceReceptorTable
+	keys = []string{globalKey,args[2],args[0]}
+	err = ReplaceLedgerEntry(stub,"InvoiceReceptorTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	return []byte("Invoice updated successfully"),nil
+}
+
+func UpdateInvoiceStatus(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
+	var oInvoice InvoiceObject
+	newArgs := []string{args[0]}
+	if len(args) < 3{
+		return nil,errors.New("Error: Expecting 4 parameters")
+	}
+	invoiceBytes,err := GetInvoice(stub,function,newArgs)
+	if err !=  nil{
+		return nil,err
+	}
+	oInvoice,err = JsonToInvoice(invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	oInvoice.Status     = args[1]
 	invoiceBytes,err = InvoiceToJson(oInvoice) 
 	if err != nil{
 		return nil,err
