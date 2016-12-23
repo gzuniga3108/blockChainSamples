@@ -392,12 +392,12 @@ func UpdateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 	if err != nil{
 		return nil,err
 	}
-	/*//Insert into InvoiceReceptorTable
+	//Insert into InvoiceReceptorTable
 	keys = []string{globalKey,args[2],args[0]}
-	err = UpdateLedger(stub,"InvoiceReceptorTable",keys,invoiceBytes)
+	err = ReplaceLedgerEntry(stub,"InvoiceReceptorTable",keys,invoiceBytes)
 	if err != nil{
 		return nil,err
-	}*/
+	}
 	return []byte("Invoice updated successfully"),nil
 }
 
