@@ -409,7 +409,7 @@ func UpdatePaymentDay(stub shim.ChaincodeStubInterface, function string, args []
 	if len(args) < 4{
 		return nil,errors.New("Error: Expecting 4 parameters")
 	}
-	invoiceBytes,err := QueryLedger(stub,"InvoiceTable",args)
+	invoiceBytes,err := QueryLedger(stub,"InvoiceTable",newArgs)
 	if err != nil{
 		return nil,err
 	}
