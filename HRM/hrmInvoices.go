@@ -288,7 +288,7 @@ func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 	if len(args) < 7{
 		return nil,errors.New("Error: Expecting 7 parameters")
 	}
-	oInvoice = InvoiceObject{args[0],args[1],args[2],args[3],args[4],"--",args[5],args[6]}
+	oInvoice = InvoiceObject{args[0],args[1],args[2],args[3],args[4],"",args[5],args[6]}
 	invoiceBytes,err := InvoiceToJson(oInvoice) 
 	if err != nil{
 		return nil,err
@@ -378,6 +378,46 @@ func UpdateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 	}
 	oInvoice = InvoiceObject{args[0],args[1],args[2],args[3],args[4],args[5],args[6],args[7]}
 	invoiceBytes,err := InvoiceToJson(oInvoice) 
+	if err != nil{
+		return nil,err
+	}
+	keys := []string{args[0]}
+	err = ReplaceLedgerEntry(stub,"InvoiceTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,errors.New("Error: Cannot save invoice")
+	}
+	//Insert into InvoiceIssuerTable
+	keys = []string{globalKey,args[1],args[0]}
+	err = ReplaceLedgerEntry(stub,"InvoiceIssuerTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	//Insert into InvoiceReceptorTable
+	keys = []string{globalKey,args[2],args[0]}
+	err = ReplaceLedgerEntry(stub,"InvoiceReceptorTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	return []byte("Invoice updated successfully"),nil
+}
+
+func UpdatePaymentDay(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
+	var oInvoice InvoiceObject
+	newArgs := []string{args[0]}
+	if len(args) < 3{
+		return nil,errors.New("Error: Expecting 3 parameters")
+	}
+	invoiceBytes,err := GetInvoice(stub,function,newArgs)
+	if err !=  nil{
+		return nil,err
+	}
+	oInvoice,err = JsonToInvoice(invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	oInvoice.PaymentDay = args[1]
+	oInvoice.Status     = args[2]
+	invoiceBytes,err = InvoiceToJson(oInvoice) 
 	if err != nil{
 		return nil,err
 	}
