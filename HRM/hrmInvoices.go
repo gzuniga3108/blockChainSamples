@@ -157,7 +157,7 @@ func UpdateLedger(stub shim.ChaincodeStubInterface, tableName string, keys []str
 func GetNumberOfKeys(tname string) int {
 	switch tname{		
 		case "InvoiceTable":
-			return 2	//InvoiceId
+			return 1	//InvoiceId
 		case "InvoiceReceptorTable":
 			return 3
 		case "InvoiceIssuerTable":
@@ -257,6 +257,30 @@ func GetList(stub shim.ChaincodeStubInterface, tableName string, args []string) 
 	return rows, nil
 }
 
+func ReplaceLedgerEntry(stub shim.ChaincodeStubInterface, tableName string, keys []string, args []byte) error {
+	nKeys := GetNumberOfKeys(tableName)
+	if nKeys < 1 {
+		fmt.Println("Atleast 1 Key must be provided \n")
+	}
+	var columns []*shim.Column
+	for i := 0; i < nKeys; i++ {
+		col := shim.Column{Value: &shim.Column_String_{String_: keys[i]}}
+		columns = append(columns, &col)
+	}
+	lastCol := shim.Column{Value: &shim.Column_Bytes{Bytes: []byte(args)}}
+	columns = append(columns, &lastCol)
+	row := shim.Row{columns}
+	ok, err := stub.ReplaceRow(tableName, row)
+	if err != nil {
+		return fmt.Errorf("ReplaceLedgerEntry: Replace Row into "+tableName+" Table operation failed. %s", err)
+	}
+	if !ok {
+		return errors.New("ReplaceLedgerEntry: Replace Row into " + tableName + " Table failed. Row with given key " + keys[0] + " already exists")
+	}
+	fmt.Println("ReplaceLedgerEntry: Replace Row in ", tableName, " Table operation Successful. ")
+	return nil
+}
+
 ///////////////////////////////////////////// INVOICE'S FUNCTIONS ////////////////////////////////////////////////////
 func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
 	var oInvoice InvoiceObject
@@ -268,7 +292,7 @@ func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 	if err != nil{
 		return nil,err
 	}
-	keys := []string{globalInvoiceKey,args[0]}
+	keys := []string{args[0]}
 	err = UpdateLedger(stub,"InvoiceTable",keys,invoiceBytes)
 	if err != nil{
 		return nil,errors.New("Error: Cannot save invoice")
@@ -286,7 +310,7 @@ func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 	return []byte("Invoice created successfully"),nil
 }
 
-/*func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
+func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
 	var err error
 	Avalbytes,err := QueryLedger(stub,"InvoiceTable",args)
 	if err != nil{
@@ -296,29 +320,6 @@ func CreateInvoice(stub shim.ChaincodeStubInterface, function string, args []str
 		return nil,errors.New("{\"Error\":\"Invoice information invoice incomplete\"}")
 	}
 	return Avalbytes,nil
-}*/
-func GetInvoice(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
-	if len(args) < 1 {
-		fmt.Println("GetInvoice(): Incorrect number of arguments. Expecting at least 1 ")		
-		return nil, errors.New("GetInvoice(): Incorrect number of arguments. Expecting at least 1 ")
-	}
-	rows, err := GetList(stub, "InvoiceTable", args)
-	if err != nil {
-		return nil, fmt.Errorf("GetInvoice() operation failed. Error marshaling JSON: %s", err)
-	}
-	nCol := GetNumberOfKeys("InvoiceTable")
-	tlist := make([]InvoiceObject, len(rows))
-	for i := 0; i < len(rows); i++ {
-		ts := rows[i].Columns[nCol].GetBytes()
-		uo, err := JsonToInvoice(ts)
-		if err != nil {
-			fmt.Println("GetInvoice() Failed : Ummarshall error")
-			return nil, fmt.Errorf("GetInvoice() operation failed. %s", err)
-		}
-		tlist[i] = uo
-	}
-	jsonRows, _ := json.Marshal(tlist)	
-	return jsonRows, nil
 }
 
 func GetInvoicesByIssuer(stub shim.ChaincodeStubInterface,function string, args []string)([]byte,error){
@@ -368,6 +369,45 @@ func GetInvoicesByReceptor(stub shim.ChaincodeStubInterface,function string, arg
 	return jsonRows, nil
 }
 
+
+func UpdatePaymentDay(stub shim.ChaincodeStubInterface, function string, args []string)([]byte,error){
+	if len(args) < 3{
+		return nil,errors.New("Error: Expecting invoice 2 parameters")
+	}
+	newArgs := []string{args[0]}
+	invoiceBytes,err := GetInvoice(stub,"GetInvoice",newArgs)
+	if err != nil{
+		return nil,err
+	}
+	oInvoice,err := JsonToInvoice(invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	oInvoice.PaymentDay = args[2]
+	oInvoice.Status     = args[3]
+	invoiceBytes,err2 := InvoiceToJson(oInvoice) 
+	if err2 != nil{
+		return nil,err2
+	}
+	keys := []string{args[0]}
+	err = ReplaceLedgerEntry(stub,"InvoiceTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,errors.New("Error: Cannot save item")
+	}
+	//Update InvoiceIssuerTable
+	keys = []string{globalKey,oInvoice.Issuer,oInvoice.InvoiceID}
+	err = UpdateLedger(stub,"InvoiceIssuerTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	//Update InvoiceReceptorTable
+	keys = []string{globalKey,oInvoice.Receptor,oInvoice.InvoiceID}
+	err = UpdateLedger(stub,"InvoiceReceptorTable",keys,invoiceBytes)
+	if err != nil{
+		return nil,err
+	}
+	return []byte("Invoice updated successfully"),nil
+}
 
 func InvoiceToJson(oInvoice InvoiceObject)([]byte,error){
 	invoiceBytes,err := json.Marshal(oInvoice)
